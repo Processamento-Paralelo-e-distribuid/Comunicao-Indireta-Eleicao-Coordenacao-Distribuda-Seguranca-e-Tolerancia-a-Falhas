@@ -1,0 +1,1 @@
+# Comunica-o-Indireta-Elei-o-Coordena-o-Distribu-da-Seguran-a-e-Toler-ncia-a-Falhas
