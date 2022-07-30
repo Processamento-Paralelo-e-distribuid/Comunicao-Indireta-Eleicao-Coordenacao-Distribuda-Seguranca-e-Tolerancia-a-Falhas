@@ -16,8 +16,9 @@ def getTransactionID():
         df = None
     transactionID = 0
     
+    n = 7
     if(df is None):
-        lista = {"TransactionID":[0], "Challenge":[random.randint(1,7)], "Seed":[" "], "Winner": [-1]}
+        lista = {"TransactionID":[0], "Challenge":[random.randint(1,n)], "Seed":[" "], "Winner": [-1]}
         df = pd.DataFrame(lista)
     else:
         tam = len(df.iloc[:, 0])
@@ -25,7 +26,7 @@ def getTransactionID():
             return df.iloc[tam-1, 0]
         else:
             transactionID = df.iloc[(tam-1), 0]+1
-            lista = {"TransactionID":transactionID, "Challenge":[random.randint(1,7)], "Seed":[" "], "Winner": [-1]}
+            lista = {"TransactionID":transactionID, "Challenge":[random.randint(1,n)], "Seed":[" "], "Winner": [-1]}
             transaction = pd.DataFrame(lista)
 
             df = pd.concat([df,transaction], ignore_index = True)
@@ -69,14 +70,7 @@ def verificaSEED(hash, challenger):
                         return -1
             return -1
 
-def main():
-    qtd_usuarios = 2
-    id = time.time()
-    
-    usuarios, eleitos, votacao = [], [], []
-    
-    numero = "1"
-    
+def main():    
     def callback(ch, method, properties, body):
         if(len(usuarios) != qtd_usuarios):
             usuarios.append(body.decode())
@@ -253,6 +247,13 @@ def main():
             
             votacao.clear()
     
+    qtd_usuarios = 2
+    id = random.randint(0,2^(32)-1)
+    
+    usuarios, eleitos, votacao = [], [], []
+    
+    numero = "1"
+    
     connection = pika.BlockingConnection(pika.ConnectionParameters(host = 'localhost'))
     channel = connection.channel()
 
@@ -262,6 +263,7 @@ def main():
     channel.exchange_declare(exchange='WRoom', exchange_type='fanout')
     room = channel.queue_declare(queue = 'ppd/WRoom/'+numero)      # assina/publica - Sala de Espera
     channel.queue_bind(exchange='WRoom', queue=room.method.queue)
+
 
     channel.exchange_declare(exchange='Election', exchange_type='fanout')
     election = channel.queue_declare(queue = 'ppd/election/'+numero)      # assina/publica - Eleção do presidente
