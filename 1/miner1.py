@@ -1,3 +1,4 @@
+from pickle import TRUE
 import pandas as pd
 import pika, sys, os
 import threading
@@ -5,6 +6,7 @@ import random
 import string
 from hashlib import sha1
 import time
+import json
 
 global arquivo 
 arquivo = 'banco-de-dados.csv'
@@ -70,15 +72,32 @@ def verificaSEED(hash, challenger):
                         return -1
             return -1
 
-def main():    
+def main():  
+    qtd_usuarios = 2
+    usuarios, eleitos, votacao = [], [], []
+    nodeID = random.randint(0,2^(32)-1)
+    
     def callback(ch, method, properties, body):
+        temp = body.decode()
+        dic = json.loads(temp)
+        
         if(len(usuarios) != qtd_usuarios):
-            usuarios.append(body.decode())
+            try:
+                if(usuarios.index(temp) >= 0):
+                    if(dic["nodeID"] == nodeID):
+                        channel.basic_publish(exchange = 'init', routing_key = '', body = jsonSTR)
+                        print(jsonSTR)
+                        time.sleep(2)
+            except:
+                usuarios.append(temp)
 
-            #Sala completa
-            if(len(usuarios) == qtd_usuarios):
-                channel.basic_publish(exchange = 'Election', routing_key = '', body = str(random.randint(0,qtd_usuarios-1)))
-                print(usuarios)
+                if(dic["nodeID"] == nodeID):
+                    channel.basic_publish(exchange = 'init', routing_key = '', body = jsonSTR)
+
+                #Sala completa
+                if(len(usuarios) == qtd_usuarios):
+                    channel.basic_publish(exchange = 'Election', routing_key = '', body = str(random.randint(0,qtd_usuarios-1)))
+                    print(usuarios)
 
     def callback2(ch, method, properties, body):
         if(len(eleitos) != qtd_usuarios):
@@ -246,24 +265,18 @@ def main():
                 channel.basic_publish(exchange = 'Challenge', routing_key = '', body = str(challenger)+'/'+str(trasactionID))
             
             votacao.clear()
-    
-    qtd_usuarios = 2
-    id = random.randint(0,2^(32)-1)
-    
-    usuarios, eleitos, votacao = [], [], []
-    
+            
     numero = "1"
     
     connection = pika.BlockingConnection(pika.ConnectionParameters(host = 'localhost'))
     channel = connection.channel()
 
-    print(id)
+    print(nodeID)
 
     # Verifica se a lista esta completa
-    channel.exchange_declare(exchange='WRoom', exchange_type='fanout')
-    room = channel.queue_declare(queue = 'ppd/WRoom/'+numero)      # assina/publica - Sala de Espera
-    channel.queue_bind(exchange='WRoom', queue=room.method.queue)
-
+    channel.exchange_declare(exchange='init', exchange_type='fanout')
+    room = channel.queue_declare(queue = 'ppd/init/'+numero)      # assina/publica - Sala de Espera
+    channel.queue_bind(exchange='init', queue=room.method.queue)
 
     channel.exchange_declare(exchange='Election', exchange_type='fanout')
     election = channel.queue_declare(queue = 'ppd/election/'+numero)      # assina/publica - Eleção do presidente
@@ -281,9 +294,14 @@ def main():
     result = channel.queue_declare(queue = 'ppd/result/'+numero)     # assina/publica - Lista de votação na seed que soluciona o desafio
     channel.queue_bind(exchange='Result', queue=result.method.queue)
     
-    # Fila de Espera
-    channel.basic_publish(exchange = 'WRoom', routing_key = '', body = str(id))
-    channel.basic_consume(queue = 'ppd/WRoom/'+numero , on_message_callback = callback, auto_ack = True)
+    
+    # InitMsg
+    dic = {"nodeID": nodeID}
+    jsonSTR = json.dumps(dic,indent=2)
+    
+    channel.basic_consume(queue = 'ppd/init/'+numero , on_message_callback = callback, auto_ack = True)
+    channel.basic_publish(exchange = 'init', routing_key = '', body = jsonSTR)
+
     
     # Eleição
     channel.basic_consume(queue = 'ppd/election/'+numero , on_message_callback = callback2, auto_ack = True)
