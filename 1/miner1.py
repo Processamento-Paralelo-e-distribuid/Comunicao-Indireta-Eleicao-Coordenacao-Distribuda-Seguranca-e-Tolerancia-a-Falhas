@@ -244,11 +244,20 @@ def main():
         split = temp.split("/")
         dic = json.loads(split[0])
 
-        
-        challenger      = int(temp[0]) # Pega challenger anunciado
-        trasictionID    = int(temp[1])
+        #Verifica assinatura do eleito
+        chairman = json.loads(Counter(eleitos).most_common(1)[0][0]) 
+        if(chairman["nodeID"] != dic["nodeID"]):
+            print("\nLog: \n\t Tentativa de Fraude no envio da challenger")
+            return
+        for chave in chaves:
+            chave = json.loads(chave)
+            if(chave["nodeID"] == chairman["nodeID"]):
+                if(not verifySignal(split[0], split[1], chave["public_key"])):
+                    print("\nLog: \n\t Tentativa de Fraude na chave do lider")
+                    return
+        challenger      = dic["challenger"] # Pega challenger anunciado
+        #trasictionID    = int(temp[1])
         setChallenge(challenger)
-
 
         # Buscar, localmente, uma seed (semente) que solucione o desafio proposto
         flag = True
@@ -272,11 +281,13 @@ def main():
         # Verifica se todas as threads acabaram 
         for thread in multThread:
             thread.join()
-            
-        #enviar resposta para server
-        cod_seed = str(id)+'/'+str(seed[0]+'/'+str(trasictionID))
-        print(cod_seed)
-        channel.basic_publish(exchange = 'Seed', routing_key = '', body = cod_seed)
+        
+        #enviar resposta para broker
+        dic = {"nodeID":nodeID,"seed":seed[0]}
+        jsonSTR = json.dumps(dic, indent=2)
+        sig = genereteSignal(jsonSTR)
+        
+        channel.basic_publish(exchange = 'solution', routing_key = '', body = jsonSTR+"/"+sig)
         
     def callback4(ch, method, properties, body):
         def submitChallenge(seed):
@@ -386,9 +397,9 @@ def main():
     challenge = channel.queue_declare(queue = 'ppd/challenge/'+numero)      # assina/publica - Desafio da transição atual
     channel.queue_bind(exchange='challenge', queue=challenge.method.queue)
 
-    channel.exchange_declare(exchange='seed', exchange_type='fanout')
-    seed = channel.queue_declare(queue = 'ppd/seed/'+numero)                # assina/publica - Verificação da seed que resolve desafio
-    channel.queue_bind(exchange='seed', queue=seed.method.queue)
+    channel.exchange_declare(exchange='solution', exchange_type='fanout')
+    seed = channel.queue_declare(queue = 'ppd/solution/'+numero)                # assina/publica - Verificação da seed que resolve desafio
+    channel.queue_bind(exchange='solution', queue=seed.method.queue)
 
     channel.exchange_declare(exchange='result', exchange_type='fanout')
     result = channel.queue_declare(queue = 'ppd/result/'+numero)            # assina/publica - Lista de votação na seed que soluciona o desafio
@@ -412,10 +423,10 @@ def main():
     channel.basic_consume(queue = 'ppd/election/'+numero , on_message_callback = callback2, auto_ack = True)
     
     # Challenger
-    #channel.basic_consume(queue = 'ppd/challenge/'+numero , on_message_callback = callback3, auto_ack = True)
+    channel.basic_consume(queue = 'ppd/challenge/'+numero , on_message_callback = callback3, auto_ack = True)
     
     # Seed
-    #channel.basic_consume(queue = 'ppd/seed/'+numero , on_message_callback = callback4, auto_ack = True)
+    #channel.basic_consume(queue = 'ppd/solution/'+numero , on_message_callback = callback4, auto_ack = True)
     
     # Resultado
     #channel.basic_consume(queue = 'ppd/result/'+numero , on_message_callback = callback5, auto_ack = True)
