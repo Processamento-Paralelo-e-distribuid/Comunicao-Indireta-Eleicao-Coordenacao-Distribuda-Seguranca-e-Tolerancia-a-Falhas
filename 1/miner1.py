@@ -81,7 +81,7 @@ def main():
         temp = body.decode()
         dic = json.loads(temp)
         
-        if(len(usuarios) != qtd_usuarios):
+        if(len(usuarios) < qtd_usuarios):
             try:
                 if(usuarios.index(temp) >= 0):
                     if(dic["nodeID"] == nodeID):
@@ -105,7 +105,7 @@ def main():
     def callback1(ch, method, properties, body):
         temp = body.decode()
         dic = json.loads(temp)
-        if(len(chaves) != qtd_usuarios):
+        if(len(chaves) < qtd_usuarios):
             try:
                 if(chaves.index(temp) >= 0):
                     if(dic["nodeID"] == nodeID):
@@ -115,8 +115,26 @@ def main():
 
                 #Sala completa
                 if(len(chaves) == qtd_usuarios):
-                    channel.basic_publish(exchange = 'Election', routing_key = '', body = str(random.randint(0,qtd_usuarios-1)))
-                    print(chaves)
+                    voto = json.loads(random.choice(usuarios))
+                    dic = {"nodeID":nodeID,"voto":voto["nodeID"]}
+
+                    arq = open("temp.txt","a")
+                    arq.write(str(dic["voto"]))
+                    arq.close()
+                    
+                    os.system("python3 1_sign.py < temp.txt > assinatura.txt")
+                    
+                    arq = open("assinatura.txt","r")
+                    linhas = arq.readlines()
+                    arq.close()
+                    
+                    dic.update({"signal":linhas[1]})
+                    
+                    jsonSTR = json.dumps(dic,indent=2)
+                    channel.basic_publish(exchange = 'election', routing_key = '', body = jsonSTR)
+                    
+                    os.remove("temp.txt")
+                    os.remove("assinatura.txt")
                 elif(dic["nodeID"] == nodeID):
                     channel.basic_publish(exchange = 'pubkey', routing_key = '', body = temp)
 
@@ -303,9 +321,9 @@ def main():
     election = channel.queue_declare(queue = 'ppd/pubkey/'+numero)        # assina/publica - Eleção do presidente
     channel.queue_bind(exchange='pubkey', queue=election.method.queue)
    
-    channel.exchange_declare(exchange='Election', exchange_type='fanout')
+    channel.exchange_declare(exchange='election', exchange_type='fanout')
     election = channel.queue_declare(queue = 'ppd/election/'+numero)        # assina/publica - Eleção do presidente
-    channel.queue_bind(exchange='Election', queue=election.method.queue)
+    channel.queue_bind(exchange='election', queue=election.method.queue)
     
     channel.exchange_declare(exchange='Challenge', exchange_type='fanout')
     challenge = channel.queue_declare(queue = 'ppd/challenge/'+numero)      # assina/publica - Desafio da transição atual
@@ -350,11 +368,17 @@ def main():
 
 if __name__ == '__main__':
     try:
-        file = 'banco-de-dados.csv'
-        if(os.path.exists(file) and os.path.isfile(file)): 
-            os.remove(file)     
         main()
     except KeyboardInterrupt:
+        file = 'banco-de-dados.csv'
+        if(os.path.exists(file) and os.path.isfile(file)): 
+            os.remove(file)
+        file = 'private_key.pem'
+        if(os.path.exists(file) and os.path.isfile(file)): 
+            os.remove(file)
+        file = 'public_key.txt'
+        if(os.path.exists(file) and os.path.isfile(file)): 
+            os.remove(file)
         print('Interrupted')
     try:
         sys.exit(0)
