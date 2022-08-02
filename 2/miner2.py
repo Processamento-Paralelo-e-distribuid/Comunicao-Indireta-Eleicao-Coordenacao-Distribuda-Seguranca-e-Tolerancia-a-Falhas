@@ -255,8 +255,8 @@ def main():
                 if(not verifySignal(split[0], split[1], chave["public_key"])):
                     print("\nLog: \n\t Tentativa de Fraude na chave do lider")
                     return
+        
         challenger      = dic["challenger"] # Pega challenger anunciado
-        #trasictionID    = int(temp[1])
         setChallenge(challenger)
 
         # Buscar, localmente, uma seed (semente) que solucione o desafio proposto
@@ -287,6 +287,7 @@ def main():
         jsonSTR = json.dumps(dic, indent=2)
         sig = genereteSignal(jsonSTR)
         
+        print(jsonSTR)
         channel.basic_publish(exchange = 'solution', routing_key = '', body = jsonSTR+"/"+sig)
         
     def callback4(ch, method, properties, body):
@@ -313,19 +314,35 @@ def main():
             else:
                 return 0
         
-        lista = body.decode().split("/")
+        temp = body.decode()
+        split = temp.split("/")
+        dic = json.loads(split[0])
+        
+        #Verifica autênticidade
+        for chave in chaves:
+            chave = json.loads(chave)
+            if(chave["nodeID"] == dic["nodeID"]):
+                if(not verifySignal(split[0], split[1], chave["public_key"])):
+                    print("\nLog: \n\t Tentativa de Fraude na Seed")
+                    return
         
         try:
             df = pd.read_csv(arquivo)
         except:
             return -1 
         
-        aux = df.query("TransactionID ==" + lista[2])
+        aux = df.query("TransactionID ==" + str(getTransactionID()))
+        print(aux)
         if(aux["Winner"].values[0] == -1):
-            result = False                       # Erro, não resolve desafio ou desafio solucionado
-            if(submitChallenge(lista[1]) == 1):  # Resolve desafio
-                result = True
-            channel.basic_publish(exchange = 'Result', routing_key = '', body = body.decode()+"/"+str(result))
+            voto = False                       # Erro, não resolve desafio ou desafio solucionado
+            if(submitChallenge(dic["seed"]) == 1):  # Resolve desafio
+                voto = True
+
+            dic = {"nodeID":nodeID,"vote":voto}
+            jsonSTR = json.dumps(dic, indent=2)
+            sig = genereteSignal(jsonSTR)
+            
+            channel.basic_publish(exchange = 'voting', routing_key = '', body = jsonSTR+"/"+sig)
         
     def callback5(ch, method, properties, body):
         def verificaVotacao(votacao):
@@ -382,12 +399,12 @@ def main():
 
     # Verifica se a lista esta completa
     channel.exchange_declare(exchange='init', exchange_type='fanout')
-    room = channel.queue_declare(queue = 'ppd/init/'+numero)                # assina/publica - Sala de Espera
-    channel.queue_bind(exchange='init', queue=room.method.queue)
+    init = channel.queue_declare(queue = 'ppd/init/'+numero)                # assina/publica - Sala de Espera
+    channel.queue_bind(exchange='init', queue=init.method.queue)
 
     channel.exchange_declare(exchange='pubkey', exchange_type='fanout')
-    election = channel.queue_declare(queue = 'ppd/pubkey/'+numero)        # assina/publica - Eleção do presidente
-    channel.queue_bind(exchange='pubkey', queue=election.method.queue)
+    pubkey = channel.queue_declare(queue = 'ppd/pubkey/'+numero)            # assina/publica - Eleção do presidente
+    channel.queue_bind(exchange='pubkey', queue=pubkey.method.queue)
    
     channel.exchange_declare(exchange='election', exchange_type='fanout')
     election = channel.queue_declare(queue = 'ppd/election/'+numero)        # assina/publica - Eleção do presidente
@@ -398,12 +415,12 @@ def main():
     channel.queue_bind(exchange='challenge', queue=challenge.method.queue)
 
     channel.exchange_declare(exchange='solution', exchange_type='fanout')
-    seed = channel.queue_declare(queue = 'ppd/solution/'+numero)                # assina/publica - Verificação da seed que resolve desafio
-    channel.queue_bind(exchange='solution', queue=seed.method.queue)
+    solution = channel.queue_declare(queue = 'ppd/solution/'+numero)        # assina/publica - Verificação da seed que resolve desafio
+    channel.queue_bind(exchange='solution', queue=solution.method.queue)
 
-    channel.exchange_declare(exchange='result', exchange_type='fanout')
-    result = channel.queue_declare(queue = 'ppd/result/'+numero)            # assina/publica - Lista de votação na seed que soluciona o desafio
-    channel.queue_bind(exchange='result', queue=result.method.queue)
+    channel.exchange_declare(exchange='voting', exchange_type='fanout')
+    voting = channel.queue_declare(queue = 'ppd/voting/'+numero)            # assina/publica - Lista de votação na seed que soluciona o desafio
+    channel.queue_bind(exchange='voting', queue=voting.method.queue)
     
     
     # InitMsg
@@ -413,23 +430,23 @@ def main():
     channel.basic_consume(queue = 'ppd/init/'+numero , on_message_callback = callback, auto_ack = True)
     channel.basic_publish(exchange = 'init', routing_key = '', body = jsonSTR)
 
-    # Criação de chaves
+    # PubKeyMsg
     os.system("bash generate_key.sh")
     os.system("python3 0_export_public_key.py")
     
     channel.basic_consume(queue = 'ppd/pubkey/'+numero , on_message_callback = callback1, auto_ack = True)
     
-    # Eleição
+    # ElectionMsg
     channel.basic_consume(queue = 'ppd/election/'+numero , on_message_callback = callback2, auto_ack = True)
     
-    # Challenger
+    # ChallengerMsg
     channel.basic_consume(queue = 'ppd/challenge/'+numero , on_message_callback = callback3, auto_ack = True)
     
-    # Seed
-    #channel.basic_consume(queue = 'ppd/solution/'+numero , on_message_callback = callback4, auto_ack = True)
+    # SolutionMsg
+    channel.basic_consume(queue = 'ppd/solution/'+numero , on_message_callback = callback4, auto_ack = True)
     
-    # Resultado
-    #channel.basic_consume(queue = 'ppd/result/'+numero , on_message_callback = callback5, auto_ack = True)
+    # VotingMsg
+    #channel.basic_consume(queue = 'ppd/voting/'+numero , on_message_callback = callback5, auto_ack = True)
     
     
     channel.start_consuming()
