@@ -1,6 +1,15 @@
 # Comunicao-Indireta-Eleição-Coordenação-Distribuda-Segurança-e-Tolerancia-a-Falhas
-
-# Implementação
+## Objetivos
+- Experimentar a implementação de sistemas de comunicação indireta por meio de
+middleware Publish/Subscribe (Pub/Sub);
+- Realizar eleição de coordenador em sistemas distribuídos por meio da troca de mensagens
+entre os participantes do sistema;
+- Realizar votação sobre o estado de transações distribuídas por meio da troca de mensagens
+entre os participantes do sistema.
+- Experimentar a verificação de assinaturas de mensagens por meio de chaves públicas/
+privadas;
+- Tratar algumas situações de falhas ou inconsistências em Sistemas Distribuídos.
+## Implementação
 No inicio do programa o banco de dados local e as chaves publica e privada são excluidos para se evitar conflitos.
 ### InitMsg
 No inicio do programa o usuario envia para a fila inicial do "init" onde se é passado o nodeID do usuario no formato JSON, a fila "init" recebe as mensagem no callback, neste callbak as mensagens são trazidas do formato JSON para um dicionario, é criada então uma lista local para armazenar os usuarios e a mensagem do proprio usuario é reenviada de tempos em tempos quando o usurio recebe o proprio nodeID, quando a lista completa a quantidade de usuarios o usuario envia para uma outra lista "pubkey" o seu nodeID e a sua chave publica.
@@ -14,6 +23,9 @@ Nesta fila o challenger enviado pelo usuario eleito e consumido no callback3, on
 A verificação da seed é feita no callback4 onde após verificação de autenticidade, é verificado se a transição atual já foi finalizada e caso não tenha sido é gerad um arquivo seed para se armazenar localmente a seed recebida, e todas as outras seeds posteriores, os usuarios enviam para a fila "voting" o seu respctivo voto após verificação se a seed encontrada realmente soluciona o desafio.
 ### VotingMsg
 A ultima fila, e a mais importante, e a fila de contagem de votos, localizada no callback5, nesta fila os votos validos são armazenados e quando se obtem todos os votos olha-se se a maioria aprova a seed, caso sim a seed no topo do arquivo seed.txt e colocada na lista local juntamente com o id do node que enviou a seed e o arquivo então é apagado, caso a seed não seja aprovada a seed é removida do topo do arquivo seed.txt e a próxima votação se inicia. Sendo apenas possivel haver verificação da votação caso o arquivo seed.txt exista.
+## Testes
+## Analise
+## Conclusão
 ## Autores
 | [<img src="https://avatars.githubusercontent.com/u/56831082?v=4" width=115><br><sub>Arthur Coelho Estevão</sub>](https://github.com/arthurcoelho442) | [<img src="https://avatars.githubusercontent.com/u/53350761?v=4" width=115><br><sub>Mayke Wallace</sub>](https://github.com/Nitrox0Af) |
 | :---: | :---: |
