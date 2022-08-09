@@ -166,21 +166,23 @@ def main():
                 
                 jsonSTR = json.dumps(dic,indent=2)
                 sig = genereteSignal(jsonSTR)
-
-                channel.basic_publish(exchange = 'election', routing_key = '', body = jsonSTR+"/"+sig)
+                
+                dic.update({"signal":sig})
+                jsonSTR = json.dumps(dic,indent=2)
+                
+                channel.basic_publish(exchange = 'election', routing_key = '', body = jsonSTR)
             elif(dic["nodeID"] == nodeID):
                 channel.basic_publish(exchange = 'pubkey', routing_key = '', body = temp)
                 time.sleep(1)
 
     def callback2(ch, method, properties, body):
         temp = body.decode()
-        
-        split = temp.split("/")
-        dic = json.loads(split[0])
+        dic = json.loads(temp)
+        sig = dic.pop("signal")
         
         if(len(eleitos) < qtd_usuarios):
             try:
-                if(eleitos.index(split[0]) >= 0):
+                if(eleitos.index(temp) >= 0):
                     if(dic["nodeID"] == nodeID):
                         channel.basic_publish(exchange = 'election', routing_key = '', body = temp)
                         time.sleep(1)
@@ -189,10 +191,10 @@ def main():
                 for chave in chaves:
                     chave = json.loads(chave)
                     if(chave["nodeID"] == dic["nodeID"]):
-                        if(not verifySignal(split[0], split[1], chave["public_key"])):
+                        if(not verifySignal(json.dumps(dic,indent=2), sig, chave["public_key"])):
                             print("\nLog: \n\t Tentativa de Fraude na votação")
                         else:
-                            eleitos.append(split[0])
+                            eleitos.append(temp)
             
             #Sala completa
             if(len(eleitos) == qtd_usuarios):
@@ -209,9 +211,13 @@ def main():
                     
                     dic = {"nodeID":nodeID,"challenger":int(challenger)}
                     jsonSTR = json.dumps(dic, indent=2)
+                    
                     sig = genereteSignal(jsonSTR)
                     
-                    channel.basic_publish(exchange = 'challenge', routing_key = '', body = jsonSTR+"/"+sig)
+                    dic.update({"signal":sig})
+                    jsonSTR = json.dumps(dic,indent=2)
+                    
+                    channel.basic_publish(exchange = 'challenge', routing_key = '', body = jsonSTR)
                     
             elif(dic["nodeID"] == nodeID):
                 channel.basic_publish(exchange = 'election', routing_key = '', body = temp)
@@ -252,9 +258,9 @@ def main():
                 n = n + 1
         
         temp = body.decode()
-        split = temp.split("/")
-        dic = json.loads(split[0])
-
+        dic = json.loads(temp)
+        sig = dic.pop("signal")
+        
         #Verifica assinatura do eleito
         chairman = json.loads(Counter(eleitos).most_common(1)[0][0]) 
         if(chairman["nodeID"] != dic["nodeID"]):
@@ -263,7 +269,7 @@ def main():
         for chave in chaves:
             chave = json.loads(chave)
             if(chave["nodeID"] == chairman["nodeID"]):
-                if(not verifySignal(split[0], split[1], chave["public_key"])):
+                if(not verifySignal(json.dumps(dic,indent=2), sig, chave["public_key"])):
                     print("\nLog: \n\t Tentativa de Fraude na chave do lider")
                     return
         
@@ -298,7 +304,10 @@ def main():
         jsonSTR = json.dumps(dic, indent=2)
         sig = genereteSignal(jsonSTR)
         
-        channel.basic_publish(exchange = 'solution', routing_key = '', body = jsonSTR+"/"+sig)
+        dic.update({"signal":sig})
+        jsonSTR = json.dumps(dic,indent=2)
+        
+        channel.basic_publish(exchange = 'solution', routing_key = '', body = jsonSTR)
         
     def callback4(ch, method, properties, body):
         def submitChallenge(seed):
@@ -325,14 +334,14 @@ def main():
                 return 0
         
         temp = body.decode()
-        split = temp.split("/")
-        dic = json.loads(split[0])
+        dic = json.loads(temp)
+        sig = dic.pop("signal")
         
         #Verifica autênticidade
         for chave in chaves:
             chave = json.loads(chave)
             if(chave["nodeID"] == dic["nodeID"]):
-                if(not verifySignal(split[0], split[1], chave["public_key"])):
+                if(not verifySignal(json.dumps(dic,indent=2), sig, chave["public_key"])):
                     print("\nLog: \n\t Tentativa de Fraude na Seed")
                     return
         
@@ -352,9 +361,13 @@ def main():
             arq.close()
             
             dic = {"nodeID":nodeID,"vote":voto}
-            jsonSTR = json.dumps(dic, indent=0)
+            jsonSTR = json.dumps(dic, indent=2)
             sig = genereteSignal(jsonSTR)
-            channel.basic_publish(exchange = 'voting', routing_key = '', body = jsonSTR+"/"+sig)  
+            
+            dic.update({"signal":sig})
+            jsonSTR = json.dumps(dic,indent=2)
+        
+            channel.basic_publish(exchange = 'voting', routing_key = '', body = jsonSTR)  
         
     def callback5(ch, method, properties, body):
         def verificaVotacao(votacao):
@@ -367,8 +380,8 @@ def main():
             return 0
         
         temp = body.decode()
-        split = temp.split("/")
-        dic = json.loads(split[0])
+        dic = json.loads(temp)
+        sig = dic.pop("signal")
         
         try:
             df = pd.read_csv(arquivo)
@@ -384,7 +397,7 @@ def main():
                 for chave in chaves:
                     chave = json.loads(chave)
                     if(chave["nodeID"] == dic["nodeID"]):
-                        if(not verifySignal(split[0], split[1], chave["public_key"])):
+                        if(not verifySignal(json.dumps(dic,indent=2), sig, chave["public_key"])):
                             print("\nLog: \n\t Tentativa de Fraude na Votação")
                         else:
                             votacao.append(temp)
@@ -394,10 +407,11 @@ def main():
                 split = arq.read().split("/")
                 arq.close()
                 if(verificaVotacao(votacao)):
-                    dic, sig = split[0], split[1]
-                    dic = json.loads(dic)
+                    dic = json.loads(split[0]) 
+                    sig = dic.pop("signal")
+                    
                     aux.loc[getTransactionID(),"Seed"]   = dic["seed"]
-                    aux.loc[getTransactionID(),"Winner"] = int(dic["nodeID"])
+                    aux.loc[getTransactionID(),"Winner"] = dic["nodeID"]
                     
                     df.iloc[getTransactionID(),:] = aux.iloc[0,:]
                     
@@ -406,18 +420,20 @@ def main():
                     eleitos.clear()
                     
                     voto = json.loads(random.choice(usuarios))
-                    dic = {"nodeID":nodeID,"voto":voto["nodeID"]}
-
                     
+                    dic = {"nodeID":nodeID,"voto":voto["nodeID"]}                    
                     jsonSTR = json.dumps(dic,indent=2)
                     sig = genereteSignal(jsonSTR)
+                    
+                    dic.update({"signal":sig})
+                    jsonSTR = json.dumps(dic,indent=2)
 
-                    channel.basic_publish(exchange = 'election', routing_key = '', body = jsonSTR+"/"+sig)
+                    channel.basic_publish(exchange = 'election', routing_key = '', body = jsonSTR)
                     
                     os.remove("seed.txt")
                 else:
                     arq = open("seed.txt", "w")
-                    arq.write("/".join(split[2:]))
+                    arq.write("/".join(split[1:]))
                     arq.close()
                             
     connection = pika.BlockingConnection(pika.ConnectionParameters(host = 'localhost'))
