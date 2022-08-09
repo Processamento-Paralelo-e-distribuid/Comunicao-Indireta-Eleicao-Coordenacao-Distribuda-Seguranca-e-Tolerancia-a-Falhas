@@ -59,27 +59,19 @@ def getChallenge(transactionID):
         return -1
 
 def verificaSEED(hash, challenger):
-            for i in range(0,40):
-                ini_string = hash[i]
-                scale = 16
-                res = bin(int(ini_string, scale)).zfill(4)
-                res = str(res)
-                for k in range(len(res)):
-                    if(res[k] == "b"):
-                        res = "0"*(4-len(res[k+1:]))+res[k+1:]
-                        break
-
-                for j in range (0, 4):
-                    if(challenger == 0):
-                        if(res[j] != "0"):
-                            return 1
-                        else:
-                            return -1
-                    if(res[j] == "0"):
-                        challenger = challenger - 1
-                    else:
-                        return -1
-            return -1
+    n = int(challenger/4)
+    p = challenger - 4*n
+    
+    if(hash[:n] == "0"*n):
+        res = str(bin(int(hash[n], 16)).zfill(4))
+        
+        for k in range(len(res)):
+            if(res[k] == "b"):
+                res = "0"*(4-len(res[k+1:]))+res[k+1:]
+                break       
+        if(res[:p] == "0"*p and res[p] != "0"):
+            return 1
+    return 0
 
 def genereteSignal(message):
     digest = SHA256.new()
