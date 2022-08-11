@@ -26,10 +26,10 @@ def getTransactionID(create = False):
         df = None
     transactionID = 0
     
-    a = 12
-    b = 21
+    a = 20
+    b = 40
     if(df is None):
-        lista = {"TransactionID":[0], "Challenge":[random.randint(a,b)], "Seed":[" "], "Winner": [-1]}
+        lista = {"TransactionID":[0], "Challenge":[random.randint(a,b+1)], "Seed":[" "], "Winner": [-1]}
         df = pd.DataFrame(lista)
     else:
         tam = len(df.iloc[:, 0])
@@ -37,7 +37,7 @@ def getTransactionID(create = False):
             return df.iloc[tam-1, 0]
         elif(create):
             transactionID = df.iloc[(tam-1), 0]+1
-            lista = {"TransactionID":transactionID, "Challenge":[random.randint(a,b)], "Seed":[" "], "Winner": [-1]}
+            lista = {"TransactionID":transactionID, "Challenge":[random.randint(a,b+1)], "Seed":[" "], "Winner": [-1]}
             transaction = pd.DataFrame(lista)
 
             df = pd.concat([df,transaction], ignore_index = True)
@@ -106,9 +106,12 @@ def verifySignal(message, sig, public_key):
         return 0
 
 def main():  
-    qtd_usuarios = 2
+    qtd_usuarios = int(input("Informe a quantidade de usuarios: "))
     usuarios, chaves, eleitos, votacao = [], [], [], []
-    nodeID = time.time()#random.randint(0,2^(32)-1)
+    
+    random.seed(random.randint(0,2^(32)-1))
+    nodeID = random.randint(0,2^(32)-1)
+    
     numero = str(nodeID)
     
     def callback(ch, method, properties, body):
@@ -118,7 +121,7 @@ def main():
         if(len(usuarios) < qtd_usuarios):
             try:
                 if(usuarios.index(temp) >= 0):
-                    if(dic["nodeID"] == nodeID):
+                    if(dic["NodeId"] == nodeID):
                         channel.basic_publish(exchange = 'init', routing_key = '', body = temp)
                         time.sleep(1)
             except:
@@ -127,14 +130,14 @@ def main():
             #Sala completa
             if(len(usuarios) == qtd_usuarios):
                 public_key = open("public_key.txt")
-                dic = {"nodeID": nodeID, "public_key": public_key.read()}
+                dic = {"NodeId": nodeID, "PubKey": public_key.read()}
                 public_key.close()
                 
                 jsonSTR = json.dumps(dic,indent=2)
                 
                 channel.basic_publish(exchange = 'pubkey', routing_key = '', body = jsonSTR)
                 print(usuarios)             
-            elif(dic["nodeID"] == nodeID):
+            elif(dic["NodeId"] == nodeID):
                 channel.basic_publish(exchange = 'init', routing_key = '', body = temp)
                 time.sleep(1)
 
@@ -144,7 +147,7 @@ def main():
         if(len(chaves) < qtd_usuarios):
             try:
                 if(chaves.index(temp) >= 0):
-                    if(dic["nodeID"] == nodeID):
+                    if(dic["NodeId"] == nodeID):
                         channel.basic_publish(exchange = 'pubkey', routing_key = '', body = temp)
                         time.sleep(1)
             except:
@@ -153,37 +156,37 @@ def main():
             #Sala completa
             if(len(chaves) == qtd_usuarios):
                 voto = json.loads(random.choice(usuarios))
-                dic = {"nodeID":nodeID,"voto":voto["nodeID"]}
+                dic = {"NodeId":nodeID,"ElectionNumber":int(voto["NodeId"])}
 
                 
                 jsonSTR = json.dumps(dic,indent=2)
                 sig = genereteSignal(jsonSTR)
                 
-                dic.update({"signal":sig})
+                dic.update({"Sign":sig})
                 jsonSTR = json.dumps(dic,indent=2)
                 
                 channel.basic_publish(exchange = 'election', routing_key = '', body = jsonSTR)
-            elif(dic["nodeID"] == nodeID):
+            elif(dic["NodeId"] == nodeID):
                 channel.basic_publish(exchange = 'pubkey', routing_key = '', body = temp)
                 time.sleep(1)
 
-    def callback2(ch, method, properties, body):
+    def callback2(ch, method, properties, body):        
         temp = body.decode()
         dic = json.loads(temp)
-        sig = dic.pop("signal")
+        sig = dic.pop("Sign")
         
         if(len(eleitos) < qtd_usuarios):
             try:
                 if(eleitos.index(temp) >= 0):
-                    if(dic["nodeID"] == nodeID):
+                    if(dic["NodeId"] == nodeID):
                         channel.basic_publish(exchange = 'election', routing_key = '', body = temp)
                         time.sleep(1)
             except:
                 #Verifica assinaturas
                 for chave in chaves:
                     chave = json.loads(chave)
-                    if(chave["nodeID"] == dic["nodeID"]):
-                        if(not verifySignal(json.dumps(dic,indent=2), sig, chave["public_key"])):
+                    if(chave["NodeId"] == dic["NodeId"]):
+                        if(not verifySignal(json.dumps(dic,indent=2), sig, chave["PubKey"])):
                             print("\nLog: \n\t Tentativa de Fraude na votação")
                         else:
                             eleitos.append(temp)
@@ -193,25 +196,25 @@ def main():
                 #Eleito
                 chairman = json.loads(Counter(eleitos).most_common(1)[0][0])
                 
-                print("\nLog: \n\tresultado da eleição: participante eleito {}\n".format(chairman["nodeID"]))
+                print("\nLog: \n\tresultado da eleição: participante eleito {}\n".format(chairman["NodeId"]))
                 votacao.clear()
                 
                 # verifica se o proprio usuario é o prefeito e publica o challenger gerado
-                if(chairman["nodeID"] == nodeID):
+                if(chairman["NodeId"] == nodeID):
                     trasactionID    = getTransactionID(True) # Cria a transação
                     challenger      = getChallenge(trasactionID)
                     
-                    dic = {"nodeID":nodeID,"challenger":int(challenger)}
+                    dic = {"NodeId":nodeID, "TransactionNumber":int(getTransactionID()),"Challenge":int(challenger)}
                     jsonSTR = json.dumps(dic, indent=2)
                     
                     sig = genereteSignal(jsonSTR)
                     
-                    dic.update({"signal":sig})
+                    dic.update({"Sign":sig})
                     jsonSTR = json.dumps(dic,indent=2)
                     
                     channel.basic_publish(exchange = 'challenge', routing_key = '', body = jsonSTR)
                     
-            elif(dic["nodeID"] == nodeID):
+            elif(dic["NodeId"] == nodeID):
                 channel.basic_publish(exchange = 'election', routing_key = '', body = temp)
                 time.sleep(1)
                 
@@ -251,21 +254,21 @@ def main():
         
         temp = body.decode()
         dic = json.loads(temp)
-        sig = dic.pop("signal")
+        sig = dic.pop("Sign")
         
         #Verifica assinatura do eleito
         chairman = json.loads(Counter(eleitos).most_common(1)[0][0]) 
-        if(chairman["nodeID"] != dic["nodeID"]):
+        if(chairman["NodeId"] != dic["NodeId"]):
             print("\nLog: \n\t Tentativa de Fraude no envio da challenger")
             return
         for chave in chaves:
             chave = json.loads(chave)
-            if(chave["nodeID"] == chairman["nodeID"]):
-                if(not verifySignal(json.dumps(dic,indent=2), sig, chave["public_key"])):
+            if(chave["NodeId"] == chairman["NodeId"]):
+                if(not verifySignal(json.dumps(dic,indent=2), sig, chave["PubKey"])):
                     print("\nLog: \n\t Tentativa de Fraude na chave do lider")
                     return
         
-        challenger      = dic["challenger"] # Pega challenger anunciado
+        challenger      = dic["Challenge"] # Pega challenger anunciado
         setChallenge(challenger)
 
         # Buscar, localmente, uma seed (semente) que solucione o desafio proposto
@@ -292,11 +295,11 @@ def main():
             thread.join()
         
         #enviar resposta para broker
-        dic = {"nodeID":nodeID,"seed":seed[0]}
+        dic = {"NodeId":nodeID, "TransactionNumber":int(getTransactionID()), "Seed":seed[0]}
         jsonSTR = json.dumps(dic, indent=2)
         sig = genereteSignal(jsonSTR)
         
-        dic.update({"signal":sig})
+        dic.update({"Sign":sig})
         jsonSTR = json.dumps(dic,indent=2)
         
         channel.basic_publish(exchange = 'solution', routing_key = '', body = jsonSTR)
@@ -327,13 +330,13 @@ def main():
         
         temp = body.decode()
         dic = json.loads(temp)
-        sig = dic.pop("signal")
+        sig = dic.pop("Sign")
         
         #Verifica autênticidade
         for chave in chaves:
             chave = json.loads(chave)
-            if(chave["nodeID"] == dic["nodeID"]):
-                if(not verifySignal(json.dumps(dic,indent=2), sig, chave["public_key"])):
+            if(chave["NodeId"] == dic["NodeId"]):
+                if(not verifySignal(json.dumps(dic,indent=2), sig, chave["PubKey"])):
                     print("\nLog: \n\t Tentativa de Fraude na Seed")
                     return
         
@@ -345,18 +348,18 @@ def main():
         aux = df.query("TransactionID ==" + str(getTransactionID()))
         if(aux["Winner"].values[0] == -1):
             voto = False                            # Erro, não resolve desafio ou desafio solucionado
-            if(submitChallenge(dic["seed"]) == 1):  # Resolve desafio
+            if(submitChallenge(dic["Seed"]) == 1):  # Resolve desafio
                 voto = True
 
             arq = open("seed.txt", "a")
             arq.write(temp+"/")
             arq.close()
             
-            dic = {"nodeID":nodeID,"vote":voto}
+            dic = {"NodeId":nodeID, "TransactionNumber":int(getTransactionID()), "Seed":dic["Seed"], "Vote":voto}
             jsonSTR = json.dumps(dic, indent=2)
             sig = genereteSignal(jsonSTR)
             
-            dic.update({"signal":sig})
+            dic.update({"Sign":sig})
             jsonSTR = json.dumps(dic,indent=2)
         
             channel.basic_publish(exchange = 'voting', routing_key = '', body = jsonSTR)  
@@ -460,7 +463,7 @@ def main():
     
     
     # InitMsg
-    dic = {"nodeID": nodeID}
+    dic = {"NodeId": nodeID}
     jsonSTR = json.dumps(dic,indent=2)
     
     channel.basic_consume(queue = 'ppd/init/'+numero , on_message_callback = callback, auto_ack = True)
