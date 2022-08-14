@@ -1,3 +1,8 @@
+from ctypes import cdll
+from pickle import TRUE
+from pickletools import read_bytes8
+from typing import Counter
+from numpy import char, insert
 import pandas as pd
 import pika, sys, os
 import threading
@@ -5,27 +10,35 @@ import random
 import string
 from hashlib import sha1
 import time
+import json
+
+#from base64 import (b64encode, b64decode)
+from Crypto.Hash import SHA256
+from Crypto.Signature import PKCS1_v1_5
+from Crypto.PublicKey import RSA
 
 global arquivo 
-arquivo = 'banco-de-dados.csv'
+arquivo = 'output/banco-de-dados.csv'
 
-def getTransactionID():
+def getTransactionID(create = False):
     try:
         df = pd.read_csv(arquivo)
     except:
         df = None
     transactionID = 0
     
+    a = 18
+    b = 20
     if(df is None):
-        lista = {"TransactionID":[0], "Challenge":[random.randint(1,7)], "Seed":[" "], "Winner": [-1]}
+        lista = {"TransactionID":[0], "Challenge":[random.randint(a,b+1)], "Seed":[" "], "Winner": [-1]}
         df = pd.DataFrame(lista)
     else:
         tam = len(df.iloc[:, 0])
         if(df.iloc[tam-1, 3] == -1):
             return df.iloc[tam-1, 0]
-        else:
+        elif(create):
             transactionID = df.iloc[(tam-1), 0]+1
-            lista = {"TransactionID":transactionID, "Challenge":[random.randint(1,7)], "Seed":[" "], "Winner": [-1]}
+            lista = {"TransactionID":transactionID, "Challenge":[random.randint(a,b+1)], "Seed":[" "], "Winner": [-1]}
             transaction = pd.DataFrame(lista)
 
             df = pd.concat([df,transaction], ignore_index = True)
@@ -47,61 +60,174 @@ def getChallenge(transactionID):
         return -1
 
 def verificaSEED(hash, challenger):
-            for i in range(0,40):
-                ini_string = hash[i]
-                scale = 16
-                res = bin(int(ini_string, scale)).zfill(4)
-                res = str(res)
-                for k in range(len(res)):
-                    if(res[k] == "b"):
-                        res = "0"*(4-len(res[k+1:]))+res[k+1:]
-                        break
-
-                for j in range (0, 4):
-                    if(challenger == 0):
-                        if(res[j] != "0"):
-                            return 1
-                        else:
-                            return -1
-                    if(res[j] == "0"):
-                        challenger = challenger - 1
-                    else:
-                        return -1
-            return -1
-
-def main():
-    qtd_usuarios = 2
-    id = time.time()
+    n = int(challenger/4)
+    p = challenger - 4*n
     
-    usuarios, eleitos, votacao = [], [], []
+    if(hash[:n] == "0"*n):
+        res = str(bin(int(hash[n], 16)).zfill(4))
+        
+        for k in range(len(res)):
+            if(res[k] == "b"):
+                res = "0"*(4-len(res[k+1:]))+res[k+1:]
+                break       
+        if(res[:p] == "0"*p and res[p] != "0"):
+            return 1
+    return 0
+
+def genereteSignal(message):
+    digest = SHA256.new()
+    digest.update(message.encode('utf-8'))
+
+    # Load private key previouly generated
+    with open ("chaves/private_key.pem", "r") as myfile:
+        private_key = RSA.importKey(myfile.read())
+
+    # Sign the message
+    signer = PKCS1_v1_5.new(private_key)
+    sig = signer.sign(digest)
+
+    # sig is bytes object, so convert to hex string.
+    # (could convert using b64encode or any number of ways)
+    return sig.hex()
+
+def verifySignal(message, sig, public_key):
+    digest = SHA256.new()
+    digest.update(message.encode('utf-8'))
+
+    sig = bytes.fromhex(sig)  # convert string to bytes object
+
+    # Load public key (not private key) and verify signature
+    public_key = RSA.importKey(public_key)
+    verifier = PKCS1_v1_5.new(public_key)
+    verified = verifier.verify(digest, sig)
+
+    if verified:
+        return 1
+    else:
+        return 0
+
+def main():  
+    qtd_usuarios = int(input("Informe a quantidade de usuarios: "))
+    usuarios, chaves, eleitos, votacao = [], [], [], []
     
-    numero = "2"
+    random.seed(random.randint(0,2^(32)-1))
+    nodeID = random.randint(0,2^(32)-1)
+    
+    numero = str(nodeID)
     
     def callback(ch, method, properties, body):
-        if(len(usuarios) != qtd_usuarios):
-            usuarios.append(body.decode())
+        temp = body.decode()
+        dic = json.loads(temp)
+        
+        if(len(usuarios) < qtd_usuarios):
+            try:
+                if(usuarios.index(temp) >= 0):
+                    if(dic["NodeId"] == nodeID):
+                        channel.basic_publish(exchange = 'init', routing_key = '', body = temp)
+                        time.sleep(1)
+            except:
+                usuarios.append(temp)
 
             #Sala completa
             if(len(usuarios) == qtd_usuarios):
-                channel.basic_publish(exchange = 'Election', routing_key = '', body = str(random.randint(0,qtd_usuarios-1)))
-                print(usuarios)
+                public_key = open("chaves/public_key.txt")
+                dic = {"NodeId": nodeID, "PubKey": public_key.read()}
+                public_key.close()
+                
+                jsonSTR = json.dumps(dic,indent=2)
+                
+                channel.basic_publish(exchange = 'pubkey', routing_key = '', body = jsonSTR)
+                print(usuarios)             
+            elif(dic["NodeId"] == nodeID):
+                channel.basic_publish(exchange = 'init', routing_key = '', body = temp)
+                time.sleep(1)
 
-    def callback2(ch, method, properties, body):
-        if(len(eleitos) != qtd_usuarios):
-            eleitos.append(int(body.decode()))
-        if(len(eleitos) == qtd_usuarios):
-            chairman = sum(eleitos)%qtd_usuarios
-            print(chairman)
-            # verifica se o proprio usuario é o prefeito e publica o challenger gerado
-            if(usuarios[chairman] == str(id)):
-                trasactionID    = getTransactionID() # Cria a transação
-                challenger      = getChallenge(trasactionID)
-                channel.basic_publish(exchange = 'Challenge', routing_key = '', body = str(challenger)+'/'+str(trasactionID))
-            eleitos.clear()
+    def callback1(ch, method, properties, body):
+        try:
+            if(usuarios.index(json.dumps({"NodeId": nodeID},indent=2)) >= 0):
+                pass
+        except:
+            sys.exit(0)
+        
+        temp = body.decode()
+        dic = json.loads(temp)
+        if(len(chaves) < qtd_usuarios):
+            try:
+                if(chaves.index(temp) >= 0):
+                    if(dic["NodeId"] == nodeID):
+                        channel.basic_publish(exchange = 'pubkey', routing_key = '', body = temp)
+                        time.sleep(1)
+            except:
+                chaves.append(temp)
+
+            #Sala completa
+            if(len(chaves) == qtd_usuarios):
+                voto = json.loads(random.choice(usuarios))
+                dic = {"NodeId":nodeID,"ElectionNumber":int(voto["NodeId"])}
+
+                
+                jsonSTR = json.dumps(dic,indent=2)
+                sig = genereteSignal(jsonSTR)
+                
+                dic.update({"Sign":sig})
+                jsonSTR = json.dumps(dic,indent=2)
+                
+                channel.basic_publish(exchange = 'election', routing_key = '', body = jsonSTR)
+            elif(dic["NodeId"] == nodeID):
+                channel.basic_publish(exchange = 'pubkey', routing_key = '', body = temp)
+                time.sleep(1)
+
+    def callback2(ch, method, properties, body):        
+        temp = body.decode()
+        dic = json.loads(temp)
+        sig = dic.pop("Sign")
+        
+        if(len(eleitos) < qtd_usuarios):
+            try:
+                if(eleitos.index(temp) >= 0):
+                    if(dic["NodeId"] == nodeID):
+                        channel.basic_publish(exchange = 'election', routing_key = '', body = temp)
+                        time.sleep(1)
+            except:
+                #Verifica assinaturas
+                for chave in chaves:
+                    chave = json.loads(chave)
+                    if(chave["NodeId"] == dic["NodeId"]):
+                        if(not verifySignal(json.dumps(dic,indent=2), sig, chave["PubKey"])):
+                            print("\nLog: \n\t Tentativa de Fraude na votação")
+                        else:
+                            eleitos.append(temp)
+            
+            #Sala completa
+            if(len(eleitos) == qtd_usuarios):
+                #Eleito
+                chairman = json.loads(Counter(eleitos).most_common(1)[0][0])
+                
+                print("\nLog: \n\tresultado da eleição: participante eleito {}\n".format(chairman["NodeId"]))
+                votacao.clear()
+                
+                # verifica se o proprio usuario é o prefeito e publica o challenger gerado
+                if(chairman["NodeId"] == nodeID):
+                    trasactionID    = getTransactionID(True) # Cria a transação
+                    challenger      = getChallenge(trasactionID)
+                    
+                    dic = {"NodeId":nodeID, "TransactionNumber":int(getTransactionID()),"Challenge":int(challenger)}
+                    jsonSTR = json.dumps(dic, indent=2)
+                    
+                    sig = genereteSignal(jsonSTR)
+                    
+                    dic.update({"Sign":sig})
+                    jsonSTR = json.dumps(dic,indent=2)
+                    
+                    channel.basic_publish(exchange = 'challenge', routing_key = '', body = jsonSTR)
+                    
+            elif(dic["NodeId"] == nodeID):
+                channel.basic_publish(exchange = 'election', routing_key = '', body = temp)
+                time.sleep(1)
                 
     def callback3(ch, method, properties, body):
         def setChallenge(challenger):
-            transactionID = getTransactionID()
+            transactionID = getTransactionID(True)
             try:
                 df = pd.read_csv(arquivo)
             except:
@@ -117,17 +243,7 @@ def main():
             
             df.to_csv(arquivo, index=False)
         
-        temp = body.decode().split("/")
-        challenger      = int(temp[0]) # Pega challenger anunciado
-        trasictionID    = int(temp[1])
-        setChallenge(challenger)
-
-        seed = []
-
-        # Buscar, localmente, uma seed (semente) que solucione o desafio proposto
-        flag = True
-
-        def random_generator(size=6, n=1, chars=string.printable): # Gera string aleatória
+        def random_generator(size=6, n=1, chars=string.ascii_letters+string.punctuation+string.digits): # Gera string aleatória
             random.seed(n)
             return ''.join(random.choice(chars) for _ in range(size))
 
@@ -142,8 +258,29 @@ def main():
                     seed.append(seedTemp)
                     break
                 n = n + 1
+        
+        temp = body.decode()
+        dic = json.loads(temp)
+        sig = dic.pop("Sign")
+        
+        #Verifica assinatura do eleito
+        chairman = json.loads(Counter(eleitos).most_common(1)[0][0]) 
+        if(chairman["NodeId"] != dic["NodeId"]):
+            print("\nLog: \n\t Tentativa de Fraude no envio da challenger")
+            return
+        for chave in chaves:
+            chave = json.loads(chave)
+            if(chave["NodeId"] == chairman["NodeId"]):
+                if(not verifySignal(json.dumps(dic,indent=2), sig, chave["PubKey"])):
+                    print("\nLog: \n\t Tentativa de Fraude na chave do lider")
+                    return
+        
+        challenger      = dic["Challenge"] # Pega challenger anunciado
+        setChallenge(challenger)
 
-        multThread = []
+        # Buscar, localmente, uma seed (semente) que solucione o desafio proposto
+        flag = True
+        seed, multThread = [], []
 
         for i in range(1,challenger*2+1):
             thread = threading.Thread(target=getSeed, args=(challenger, seed, i, ))
@@ -163,11 +300,16 @@ def main():
         # Verifica se todas as threads acabaram 
         for thread in multThread:
             thread.join()
-            
-        #enviar resposta para server
-        cod_seed = str(id)+'/'+str(seed[0]+'/'+str(trasictionID))
-        print(cod_seed)
-        channel.basic_publish(exchange = 'Seed', routing_key = '', body = cod_seed)
+        
+        #enviar resposta para broker
+        dic = {"NodeId":nodeID, "TransactionNumber":int(getTransactionID()), "Seed":seed[0]}
+        jsonSTR = json.dumps(dic, indent=2)
+        sig = genereteSignal(jsonSTR)
+        
+        dic.update({"Sign":sig})
+        jsonSTR = json.dumps(dic,indent=0)
+        
+        channel.basic_publish(exchange = 'solution', routing_key = '', body = jsonSTR)
         
     def callback4(ch, method, properties, body):
         def submitChallenge(seed):
@@ -193,19 +335,41 @@ def main():
             else:
                 return 0
         
-        lista = body.decode().split("/")
+        temp = body.decode()
+        dic = json.loads(temp)
+        sig = dic.pop("Sign")
+        
+        #Verifica autênticidade
+        for chave in chaves:
+            chave = json.loads(chave)
+            if(chave["NodeId"] == dic["NodeId"]):
+                if(not verifySignal(json.dumps(dic,indent=2), sig, chave["PubKey"])):
+                    print("\nLog: \n\t Tentativa de Fraude na Seed")
+                    return
         
         try:
             df = pd.read_csv(arquivo)
         except:
             return -1 
         
-        aux = df.query("TransactionID ==" + lista[2])
+        aux = df.query("TransactionID ==" + str(getTransactionID()))
         if(aux["Winner"].values[0] == -1):
-            result = False                       # Erro, não resolve desafio ou desafio solucionado
-            if(submitChallenge(lista[1]) == 1):  # Resolve desafio
-                result = True
-            channel.basic_publish(exchange = 'Result', routing_key = '', body = body.decode()+"/"+str(result))
+            voto = False                            # Erro, não resolve desafio ou desafio solucionado
+            if(submitChallenge(dic["Seed"]) == 1):  # Resolve desafio
+                voto = True
+
+            arq = open("seed.txt", "a")
+            arq.write(str(dic["NodeId"])+"\t"+dic["Seed"]+"\n")
+            arq.close()
+            
+            dic = {"NodeId":nodeID, "TransactionNumber":int(getTransactionID()), "Seed":dic["Seed"], "Vote":voto}
+            jsonSTR = json.dumps(dic, indent=2)
+            sig = genereteSignal(jsonSTR)
+            
+            dic.update({"Sign":sig})
+            jsonSTR = json.dumps(dic,indent=2)
+        
+            channel.basic_publish(exchange = 'voting', routing_key = '', body = jsonSTR)  
         
     def callback5(ch, method, properties, body):
         def verificaVotacao(votacao):
@@ -216,99 +380,146 @@ def main():
             if(count >= qtd_usuarios/2):
                 return 1
             return 0
+        
+        temp = body.decode()
+        dic = json.loads(temp)
+        sig = dic.pop("Sign")
+        
+        try:
+            df = pd.read_csv(arquivo)
+        except:
+            return -1 
+        aux = df.query("TransactionID ==" + str(getTransactionID()))
+        if(len(votacao) < qtd_usuarios and aux["Winner"].values[0] == -1):
+            try:
+                if(votacao.index(temp) >= 0):
+                    pass
+            except:
+                #Verifica autênticidade
+                for chave in chaves:
+                    chave = json.loads(chave)
+                    if(chave["NodeId"] == dic["NodeId"]):
+                        if(not verifySignal(json.dumps(dic,indent=2), sig, chave["PubKey"])):
+                            print("\nLog: \n\t Tentativa de Fraude na Votação")
+                        else:
+                            votacao.append(temp)
             
-        if(len(votacao) != qtd_usuarios):
-            votacao.append(body.decode().split("/"))
-        if(len(votacao) == qtd_usuarios):
-            print(votacao)
-            chairman = 0
-            if(verificaVotacao(votacao)):
-                try:
-                    df = pd.read_csv(arquivo)
-                except:
-                    return -1 
-                
-                aux = df.query("TransactionID ==" + votacao[0][2])
-                if(aux["Winner"].values[0] == -1):
-                    transactionID = getTransactionID()
+            if(len(votacao) == qtd_usuarios):
+                arq = open("seed.txt", "r")
+                split = arq.read().split("\n")
+                arq.close()
+                if(verificaVotacao(votacao)):
+                    dic = split[0].split("\t")
                     
-                    trasition = df.query("TransactionID == "+str(transactionID))  
+                    aux.loc[getTransactionID(),"Seed"]   = dic[1]
+                    aux.loc[getTransactionID(),"Winner"] = int(dic[0])
                     
-                    trasition.loc[transactionID,"Seed"]   = votacao[0][1]
-                    trasition.loc[transactionID,"Winner"] = float(votacao[0][0])
-                    
-                    df.iloc[transactionID,:] = trasition.iloc[0,:]
+                    df.iloc[getTransactionID(),:] = aux.iloc[0,:]
                     
                     df.to_csv(arquivo, index=False)
-                    chairman = usuarios.index(votacao[0][0])
+                    
+                    eleitos.clear()
+                    
+                    voto = json.loads(random.choice(usuarios))
+                    
+                    dic = {"NodeId":nodeID,"ElectionNumber":voto["NodeId"]}                    
+                    jsonSTR = json.dumps(dic,indent=2)
+                    sig = genereteSignal(jsonSTR)
+                    
+                    dic.update({"Sign":sig})
+                    jsonSTR = json.dumps(dic,indent=2)
+
+                    channel.basic_publish(exchange = 'election', routing_key = '', body = jsonSTR)
+                    
+                    os.remove("seed.txt")
                 else:
-                    return
-            
-            print(chairman)
-            channel.queue_purge('ppd/result/'+numero)
-            if(usuarios[chairman] == str(id)):
-                trasactionID    = getTransactionID()
-                challenger      = getChallenge(trasactionID)
-                channel.basic_publish(exchange = 'Challenge', routing_key = '', body = str(challenger)+'/'+str(trasactionID))
-            
-            votacao.clear()
-    
+                    arq = open("seed.txt", "w")
+                    arq.write("/".join(split[1:]))
+                    arq.close()
+                            
     connection = pika.BlockingConnection(pika.ConnectionParameters(host = 'localhost'))
     channel = connection.channel()
 
-    print(id)
+    print(nodeID)
 
     # Verifica se a lista esta completa
-    channel.exchange_declare(exchange='WRoom', exchange_type='fanout')
-    room = channel.queue_declare(queue = 'ppd/WRoom/'+numero)      # assina/publica - Sala de Espera
-    channel.queue_bind(exchange='WRoom', queue=room.method.queue)
+    channel.exchange_declare(exchange='init', exchange_type='fanout')
+    init = channel.queue_declare(queue = 'ppd/init/'+numero)                # assina/publica - Sala de Espera
+    channel.queue_bind(exchange='init', queue=init.method.queue)
 
-    channel.exchange_declare(exchange='Election', exchange_type='fanout')
-    election = channel.queue_declare(queue = 'ppd/election/'+numero)      # assina/publica - Eleção do presidente
-    channel.queue_bind(exchange='Election', queue=election.method.queue)
-
-    channel.exchange_declare(exchange='Challenge', exchange_type='fanout')
-    challenge = channel.queue_declare(queue = 'ppd/challenge/'+numero)     # assina/publica - Desafio da transição atual
-    channel.queue_bind(exchange='Challenge', queue=challenge.method.queue)
-
-    channel.exchange_declare(exchange='Seed', exchange_type='fanout')
-    seed = channel.queue_declare(queue = 'ppd/seed/'+numero)     # assina/publica - Verificação da seed que resolve desafio
-    channel.queue_bind(exchange='Seed', queue=seed.method.queue)
-
-    channel.exchange_declare(exchange='Result', exchange_type='fanout')
-    result = channel.queue_declare(queue = 'ppd/result/'+numero)     # assina/publica - Lista de votação na seed que soluciona o desafio
-    channel.queue_bind(exchange='Result', queue=result.method.queue)
+    channel.exchange_declare(exchange='pubkey', exchange_type='fanout')
+    pubkey = channel.queue_declare(queue = 'ppd/pubkey/'+numero)            # assina/publica - Eleção do presidente
+    channel.queue_bind(exchange='pubkey', queue=pubkey.method.queue)
+   
+    channel.exchange_declare(exchange='election', exchange_type='fanout')
+    election = channel.queue_declare(queue = 'ppd/election/'+numero)        # assina/publica - Eleção do presidente
+    channel.queue_bind(exchange='election', queue=election.method.queue)
     
-    # Fila de Espera
-    channel.basic_publish(exchange = 'WRoom', routing_key = '', body = str(id))
-    channel.basic_consume(queue = 'ppd/WRoom/'+numero , on_message_callback = callback, auto_ack = True)
+    channel.exchange_declare(exchange='challenge', exchange_type='fanout')
+    challenge = channel.queue_declare(queue = 'ppd/challenge/'+numero)      # assina/publica - Desafio da transição atual
+    channel.queue_bind(exchange='challenge', queue=challenge.method.queue)
+
+    channel.exchange_declare(exchange='solution', exchange_type='fanout')
+    solution = channel.queue_declare(queue = 'ppd/solution/'+numero)        # assina/publica - Verificação da seed que resolve desafio
+    channel.queue_bind(exchange='solution', queue=solution.method.queue)
+
+    channel.exchange_declare(exchange='voting', exchange_type='fanout')
+    voting = channel.queue_declare(queue = 'ppd/voting/'+numero)            # assina/publica - Lista de votação na seed que soluciona o desafio
+    channel.queue_bind(exchange='voting', queue=voting.method.queue)
     
-    # Eleição
+    
+    # InitMsg
+    dic = {"NodeId": nodeID}
+    jsonSTR = json.dumps(dic,indent=2)
+    
+    channel.basic_consume(queue = 'ppd/init/'+numero , on_message_callback = callback, auto_ack = True)
+    channel.basic_publish(exchange = 'init', routing_key = '', body = jsonSTR)
+
+    # PubKeyMsg
+    os.system("bash chaves/generate_key.sh")
+    os.system("python3 chaves/0_export_public_key.py")
+    os.system("mv private_key.pem public_key.txt chaves/")
+    
+    channel.basic_consume(queue = 'ppd/pubkey/'+numero , on_message_callback = callback1, auto_ack = True)
+    
+    # ElectionMsg
     channel.basic_consume(queue = 'ppd/election/'+numero , on_message_callback = callback2, auto_ack = True)
     
-    # Challenger
+    # ChallengerMsg
     channel.basic_consume(queue = 'ppd/challenge/'+numero , on_message_callback = callback3, auto_ack = True)
     
-    # Seed
-    channel.basic_consume(queue = 'ppd/seed/'+numero , on_message_callback = callback4, auto_ack = True)
+    # SolutionMsg
+    channel.basic_consume(queue = 'ppd/solution/'+numero , on_message_callback = callback4, auto_ack = True)
     
-    # Resultado
-    channel.basic_consume(queue = 'ppd/result/'+numero , on_message_callback = callback5, auto_ack = True)
-    
+    # VotingMsg
+    channel.basic_consume(queue = 'ppd/voting/'+numero , on_message_callback = callback5, auto_ack = True)
     
     channel.start_consuming()
 
 if __name__ == '__main__':
     try:
-        file = 'banco-de-dados.csv'
+        file = 'output/banco-de-dados.csv'
         if(os.path.exists(file) and os.path.isfile(file)): 
-            os.remove(file)     
+            os.remove(file)
+        file = 'chaves/private_key.pem'
+        if(os.path.exists(file) and os.path.isfile(file)): 
+            os.remove(file)
+        file = 'chaves/public_key.txt'
+        if(os.path.exists(file) and os.path.isfile(file)): 
+            os.remove(file)
         main()
     except KeyboardInterrupt:
+        file = 'chaves/private_key.pem'
+        if(os.path.exists(file) and os.path.isfile(file)): 
+            os.remove(file)
+        file = 'chaves/public_key.txt'
+        if(os.path.exists(file) and os.path.isfile(file)): 
+            os.remove(file)
+        file = 'seed.txt'
+        if(os.path.exists(file) and os.path.isfile(file)): 
+            os.remove(file)
         print('Interrupted')
     try:
         sys.exit(0)
     except SystemExit:
         os._exit(0)
-
-#def submitChallenge(transactionID, ClientID, seed):

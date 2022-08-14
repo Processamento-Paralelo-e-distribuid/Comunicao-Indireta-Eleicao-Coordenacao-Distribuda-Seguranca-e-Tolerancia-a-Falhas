@@ -1,4 +1,3 @@
-from ctypes import cdll
 from pickle import TRUE
 from pickletools import read_bytes8
 from typing import Counter
@@ -18,7 +17,7 @@ from Crypto.Signature import PKCS1_v1_5
 from Crypto.PublicKey import RSA
 
 global arquivo 
-arquivo = 'output/banco-de-dados.csv'
+arquivo = 'banco-de-dados.csv'
 
 def getTransactionID(create = False):
     try:
@@ -28,7 +27,7 @@ def getTransactionID(create = False):
     transactionID = 0
     
     a = 18
-    b = 20
+    b = 25
     if(df is None):
         lista = {"TransactionID":[0], "Challenge":[random.randint(a,b+1)], "Seed":[" "], "Winner": [-1]}
         df = pd.DataFrame(lista)
@@ -79,7 +78,7 @@ def genereteSignal(message):
     digest.update(message.encode('utf-8'))
 
     # Load private key previouly generated
-    with open ("chaves/private_key.pem", "r") as myfile:
+    with open ("private_key.pem", "r") as myfile:
         private_key = RSA.importKey(myfile.read())
 
     # Sign the message
@@ -130,7 +129,7 @@ def main():
 
             #Sala completa
             if(len(usuarios) == qtd_usuarios):
-                public_key = open("chaves/public_key.txt")
+                public_key = open("public_key.txt")
                 dic = {"NodeId": nodeID, "PubKey": public_key.read()}
                 public_key.close()
                 
@@ -143,12 +142,6 @@ def main():
                 time.sleep(1)
 
     def callback1(ch, method, properties, body):
-        try:
-            if(usuarios.index(json.dumps({"NodeId": nodeID},indent=2)) >= 0):
-                pass
-        except:
-            sys.exit(0)
-        
         temp = body.decode()
         dic = json.loads(temp)
         if(len(chaves) < qtd_usuarios):
@@ -243,7 +236,7 @@ def main():
             
             df.to_csv(arquivo, index=False)
         
-        def random_generator(size=6, n=1, chars=string.ascii_letters+string.punctuation+string.digits): # Gera string aleatória
+        def random_generator(size=6, n=1, chars=string.printable): # Gera string aleatória
             random.seed(n)
             return ''.join(random.choice(chars) for _ in range(size))
 
@@ -307,7 +300,7 @@ def main():
         sig = genereteSignal(jsonSTR)
         
         dic.update({"Sign":sig})
-        jsonSTR = json.dumps(dic,indent=0)
+        jsonSTR = json.dumps(dic,indent=2)
         
         channel.basic_publish(exchange = 'solution', routing_key = '', body = jsonSTR)
         
@@ -359,7 +352,7 @@ def main():
                 voto = True
 
             arq = open("seed.txt", "a")
-            arq.write(str(dic["NodeId"])+"\t"+dic["Seed"]+"\n")
+            arq.write(temp+"/")
             arq.close()
             
             dic = {"NodeId":nodeID, "TransactionNumber":int(getTransactionID()), "Seed":dic["Seed"], "Vote":voto}
@@ -383,7 +376,7 @@ def main():
         
         temp = body.decode()
         dic = json.loads(temp)
-        sig = dic.pop("Sign")
+        sig = dic.pop("signal")
         
         try:
             df = pd.read_csv(arquivo)
@@ -398,21 +391,22 @@ def main():
                 #Verifica autênticidade
                 for chave in chaves:
                     chave = json.loads(chave)
-                    if(chave["NodeId"] == dic["NodeId"]):
-                        if(not verifySignal(json.dumps(dic,indent=2), sig, chave["PubKey"])):
+                    if(chave["nodeID"] == dic["nodeID"]):
+                        if(not verifySignal(json.dumps(dic,indent=2), sig, chave["public_key"])):
                             print("\nLog: \n\t Tentativa de Fraude na Votação")
                         else:
                             votacao.append(temp)
             
             if(len(votacao) == qtd_usuarios):
                 arq = open("seed.txt", "r")
-                split = arq.read().split("\n")
+                split = arq.read().split("/")
                 arq.close()
                 if(verificaVotacao(votacao)):
-                    dic = split[0].split("\t")
+                    dic = json.loads(split[0]) 
+                    sig = dic.pop("signal")
                     
-                    aux.loc[getTransactionID(),"Seed"]   = dic[1]
-                    aux.loc[getTransactionID(),"Winner"] = int(dic[0])
+                    aux.loc[getTransactionID(),"Seed"]   = dic["seed"]
+                    aux.loc[getTransactionID(),"Winner"] = dic["nodeID"]
                     
                     df.iloc[getTransactionID(),:] = aux.iloc[0,:]
                     
@@ -422,11 +416,11 @@ def main():
                     
                     voto = json.loads(random.choice(usuarios))
                     
-                    dic = {"NodeId":nodeID,"ElectionNumber":voto["NodeId"]}                    
+                    dic = {"nodeID":nodeID,"voto":voto["nodeID"]}                    
                     jsonSTR = json.dumps(dic,indent=2)
                     sig = genereteSignal(jsonSTR)
                     
-                    dic.update({"Sign":sig})
+                    dic.update({"signal":sig})
                     jsonSTR = json.dumps(dic,indent=2)
 
                     channel.basic_publish(exchange = 'election', routing_key = '', body = jsonSTR)
@@ -476,9 +470,8 @@ def main():
     channel.basic_publish(exchange = 'init', routing_key = '', body = jsonSTR)
 
     # PubKeyMsg
-    os.system("bash chaves/generate_key.sh")
-    os.system("python3 chaves/0_export_public_key.py")
-    os.system("mv private_key.pem public_key.txt chaves/")
+    os.system("bash generate_key.sh")
+    os.system("python3 0_export_public_key.py")
     
     channel.basic_consume(queue = 'ppd/pubkey/'+numero , on_message_callback = callback1, auto_ack = True)
     
@@ -498,21 +491,21 @@ def main():
 
 if __name__ == '__main__':
     try:
-        file = 'output/banco-de-dados.csv'
+        file = 'banco-de-dados.csv'
         if(os.path.exists(file) and os.path.isfile(file)): 
             os.remove(file)
-        file = 'chaves/private_key.pem'
+        file = 'private_key.pem'
         if(os.path.exists(file) and os.path.isfile(file)): 
             os.remove(file)
-        file = 'chaves/public_key.txt'
+        file = 'public_key.txt'
         if(os.path.exists(file) and os.path.isfile(file)): 
             os.remove(file)
         main()
     except KeyboardInterrupt:
-        file = 'chaves/private_key.pem'
+        file = 'private_key.pem'
         if(os.path.exists(file) and os.path.isfile(file)): 
             os.remove(file)
-        file = 'chaves/public_key.txt'
+        file = 'public_key.txt'
         if(os.path.exists(file) and os.path.isfile(file)): 
             os.remove(file)
         file = 'seed.txt'
