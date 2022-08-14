@@ -25,7 +25,9 @@ A verificação da seed é feita no callback4 onde após verificação de autent
 A ultima fila, e a mais importante, e a fila de contagem de votos, localizada no callback5, nesta fila os votos validos são armazenados e quando se obtem todos os votos olha-se se a maioria aprova a seed, caso sim a seed no topo do arquivo seed.txt e colocada na lista local juntamente com o id do node que enviou a seed e o arquivo então é apagado, caso a seed não seja aprovada a seed é removida do topo do arquivo seed.txt e a próxima votação se inicia. Sendo apenas possivel haver verificação da votação caso o arquivo seed.txt exista.
 ## Testes
 ## Analise
-## Conclusão
+## Modo de execução
+## Requerimento de instalação
+requer a instalação do pycryptodome 3.15.0, pika, pandas e threading.
 ## Autores
 | [<img src="https://avatars.githubusercontent.com/u/56831082?v=4" width=115><br><sub>Arthur Coelho Estevão</sub>](https://github.com/arthurcoelho442) | [<img src="https://avatars.githubusercontent.com/u/53350761?v=4" width=115><br><sub>Mayke Wallace</sub>](https://github.com/Nitrox0Af) |
 | :---: | :---: |
