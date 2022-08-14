@@ -34,7 +34,7 @@ Primeiramente atualizando o sistema
 sudo apt-get update -y
 ```
 ```
-sudo apt-get upgrade
+sudo apt-get upgrade -y
 ```
 Instalação do pip:
 ```
