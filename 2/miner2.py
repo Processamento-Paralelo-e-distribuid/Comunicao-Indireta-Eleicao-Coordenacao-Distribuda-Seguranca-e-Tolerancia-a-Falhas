@@ -177,7 +177,14 @@ def main():
                 channel.basic_publish(exchange = 'pubkey', routing_key = '', body = temp)
                 time.sleep(1)
 
-    def callback2(ch, method, properties, body):        
+    def callback2(ch, method, properties, body): 
+        def getCherman(eleitos):
+            eleitos = [json.loads(aux)["NodeId"] for aux in eleitos]
+            chairman = Counter(eleitos)
+            print(chairman)
+            chairman = chairman.most_common(1)[0][0]
+            print(chairman)
+            return chairman                   
         temp = body.decode()
         dic = json.loads(temp)
         sig = dic.pop("Sign")
@@ -194,20 +201,20 @@ def main():
                     chave = json.loads(chave)
                     if(chave["NodeId"] == dic["NodeId"]):
                         if(not verifySignal(json.dumps(dic,indent=2), sig, chave["PubKey"])):
-                            print("\nLog: \n\t Tentativa de Fraude na votação")
+                            print("\nLog: \n\t Tentativa de fraude na eleição")
                         else:
                             eleitos.append(temp)
             
             #Sala completa
             if(len(eleitos) == qtd_usuarios):
                 #Eleito
-                chairman = json.loads(Counter(eleitos).most_common(1)[0][0])
+                chairman = getCherman(eleitos)
                 
-                print("\nLog: \n\tresultado da eleição: participante eleito {}\n".format(chairman["NodeId"]))
+                print("\nLog: \n\tresultado da eleição: participante eleito {}\n".format(chairman))
                 votacao.clear()
                 
                 # verifica se o proprio usuario é o prefeito e publica o challenger gerado
-                if(chairman["NodeId"] == nodeID):
+                if(chairman == nodeID):
                     trasactionID    = getTransactionID(True) # Cria a transação
                     challenger      = getChallenge(trasactionID)
                     
@@ -266,13 +273,13 @@ def main():
         #Verifica assinatura do eleito
         chairman = json.loads(Counter(eleitos).most_common(1)[0][0]) 
         if(chairman["NodeId"] != dic["NodeId"]):
-            print("\nLog: \n\t Tentativa de Fraude no envio da challenger")
+            print("\nLog: \n\t Tentativa de fraude no envio da challenger")
             return
         for chave in chaves:
             chave = json.loads(chave)
             if(chave["NodeId"] == chairman["NodeId"]):
                 if(not verifySignal(json.dumps(dic,indent=2), sig, chave["PubKey"])):
-                    print("\nLog: \n\t Tentativa de Fraude na chave do lider")
+                    print("\nLog: \n\t Tentativa de fraude na chave do lider")
                     return
         
         challenger      = dic["Challenge"] # Pega challenger anunciado
