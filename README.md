@@ -28,6 +28,34 @@ A ultima fila, e a mais importante, e a fila de contagem de votos, localizada no
 ## Modo de execução
 ## Requerimento de instalação
 requer a instalação do pycryptodome 3.15.0, pika, pandas e threading.
+
+Primeiramente atualizando o sistema
+```
+sudo apt-get update -y
+```
+```
+sudo apt-get upgrade
+```
+Instalação do pip:
+```
+python3 -m pip install --upgrade pip
+```
+Instalação do pika:
+```
+python3 -m pip install --upgrade pika
+```
+Instalando pycryotidine:
+```
+sudo apt-get install -y python-pycryptodome
+```
+Instalando pandas:
+```
+sudo apt install python3-pandas
+```
+Instalando threading:
+```
+pip3 install threading
+```
 ## Autores
 | [<img src="https://avatars.githubusercontent.com/u/56831082?v=4" width=115><br><sub>Arthur Coelho Estevão</sub>](https://github.com/arthurcoelho442) | [<img src="https://avatars.githubusercontent.com/u/53350761?v=4" width=115><br><sub>Mayke Wallace</sub>](https://github.com/Nitrox0Af) |
 | :---: | :---: |
