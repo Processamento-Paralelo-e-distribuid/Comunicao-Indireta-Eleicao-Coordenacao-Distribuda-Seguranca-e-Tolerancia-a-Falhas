@@ -116,7 +116,7 @@ def main():
             try:
                 if(usuarios.index(temp) >= 0):
                     if(dic["NodeId"] == nodeID):
-                        channel.basic_publish(exchange = 'init', routing_key = '', body = temp)
+                        channel.basic_publish(exchange = 'ppd/init', routing_key = '', body = temp)
                         time.sleep(1)
             except:
                 usuarios.append(temp)
@@ -129,10 +129,10 @@ def main():
                 
                 jsonSTR = json.dumps(dic,indent=2)
                 
-                channel.basic_publish(exchange = 'pubkey', routing_key = '', body = jsonSTR)
+                channel.basic_publish(exchange = 'ppd/pubkey', routing_key = '', body = jsonSTR)
                 print(usuarios)             
             elif(dic["NodeId"] == nodeID):
-                channel.basic_publish(exchange = 'init', routing_key = '', body = temp)
+                channel.basic_publish(exchange = 'ppd/init', routing_key = '', body = temp)
                 time.sleep(1)
 
     def callback1(ch, method, properties, body):
@@ -148,7 +148,7 @@ def main():
             try:
                 if(chaves.index(temp) >= 0):
                     if(dic["NodeId"] == nodeID):
-                        channel.basic_publish(exchange = 'pubkey', routing_key = '', body = temp)
+                        channel.basic_publish(exchange = 'ppd/pubkey', routing_key = '', body = temp)
                         time.sleep(1)
             except:
                 chaves.append(temp)
@@ -165,9 +165,9 @@ def main():
                 dic.update({"Sign":sig})
                 jsonSTR = json.dumps(dic,indent=2)
                 
-                channel.basic_publish(exchange = 'election', routing_key = '', body = jsonSTR)
+                channel.basic_publish(exchange = 'ppd/election', routing_key = '', body = jsonSTR)
             elif(dic["NodeId"] == nodeID):
-                channel.basic_publish(exchange = 'pubkey', routing_key = '', body = temp)
+                channel.basic_publish(exchange = 'ppd/pubkey', routing_key = '', body = temp)
                 time.sleep(1)
 
     def callback2(ch, method, properties, body): 
@@ -186,7 +186,7 @@ def main():
             try:
                 if(eleitos.index(temp) >= 0):
                     if(dic["NodeId"] == nodeID):
-                        channel.basic_publish(exchange = 'election', routing_key = '', body = temp)
+                        channel.basic_publish(exchange = 'ppd/election', routing_key = '', body = temp)
                         time.sleep(1)
             except:
                 #Verifica assinaturas
@@ -219,10 +219,10 @@ def main():
                     dic.update({"Sign":sig})
                     jsonSTR = json.dumps(dic,indent=2)
                     
-                    channel.basic_publish(exchange = 'challenge', routing_key = '', body = jsonSTR)
+                    channel.basic_publish(exchange = 'ppd/challenge', routing_key = '', body = jsonSTR)
                     
             elif(dic["NodeId"] == nodeID):
-                channel.basic_publish(exchange = 'election', routing_key = '', body = temp)
+                channel.basic_publish(exchange = 'ppd/election', routing_key = '', body = temp)
                 time.sleep(1)
                 
     def callback3(ch, method, properties, body):
@@ -309,7 +309,7 @@ def main():
         dic.update({"Sign":sig})
         jsonSTR = json.dumps(dic,indent=0)
         
-        channel.basic_publish(exchange = 'solution', routing_key = '', body = jsonSTR)
+        channel.basic_publish(exchange = 'ppd/solution', routing_key = '', body = jsonSTR)
         
     def callback4(ch, method, properties, body):
         def submitChallenge(seed):
@@ -369,7 +369,7 @@ def main():
             dic.update({"Sign":sig})
             jsonSTR = json.dumps(dic,indent=2)
         
-            channel.basic_publish(exchange = 'voting', routing_key = '', body = jsonSTR)  
+            channel.basic_publish(exchange = 'ppd/voting', routing_key = '', body = jsonSTR)  
         
     def callback5(ch, method, properties, body):
         def verificaVotacao(votacao):
@@ -429,7 +429,7 @@ def main():
                     dic.update({"Sign":sig})
                     jsonSTR = json.dumps(dic,indent=2)
 
-                    channel.basic_publish(exchange = 'election', routing_key = '', body = jsonSTR)
+                    channel.basic_publish(exchange = 'ppd/election', routing_key = '', body = jsonSTR)
                     
                     os.remove("seed.txt")
                 else:
@@ -443,29 +443,29 @@ def main():
     print(nodeID)
 
     # Verifica se a lista esta completa
-    channel.exchange_declare(exchange='init', exchange_type='fanout')
-    init = channel.queue_declare(queue = 'ppd/InitMsg/'+numero)                # assina/publica - Sala de Espera
-    channel.queue_bind(exchange='init', queue=init.method.queue)
+    channel.exchange_declare(exchange='ppd/init', exchange_type='fanout')
+    init = channel.queue_declare(queue = 'ppd/init/'+numero)                # assina/publica - Sala de Espera
+    channel.queue_bind(exchange='ppd/init', queue=init.method.queue)
 
-    channel.exchange_declare(exchange='pubkey', exchange_type='fanout')
-    pubkey = channel.queue_declare(queue = 'ppd/PubKeyMsg/'+numero)            # assina/publica - Eleção do presidente
-    channel.queue_bind(exchange='pubkey', queue=pubkey.method.queue)
+    channel.exchange_declare(exchange='ppd/pubkey', exchange_type='fanout')
+    pubkey = channel.queue_declare(queue = 'ppd/pubkey/'+numero)            # assina/publica - Eleção do presidente
+    channel.queue_bind(exchange='ppd/pubkey', queue=pubkey.method.queue)
    
-    channel.exchange_declare(exchange='election', exchange_type='fanout')
-    election = channel.queue_declare(queue = 'ppd/ElectionMsg/'+numero)        # assina/publica - Eleção do presidente
-    channel.queue_bind(exchange='election', queue=election.method.queue)
+    channel.exchange_declare(exchange='ppd/election', exchange_type='fanout')
+    election = channel.queue_declare(queue = 'ppd/election/'+numero)        # assina/publica - Eleção do presidente
+    channel.queue_bind(exchange='ppd/election', queue=election.method.queue)
     
-    channel.exchange_declare(exchange='challenge', exchange_type='fanout')
-    challenge = channel.queue_declare(queue = 'ppd/ChallengeMsg/'+numero)      # assina/publica - Desafio da transição atual
-    channel.queue_bind(exchange='challenge', queue=challenge.method.queue)
+    channel.exchange_declare(exchange='ppd/challenge', exchange_type='fanout')
+    challenge = channel.queue_declare(queue = 'ppd/challenge/'+numero)      # assina/publica - Desafio da transição atual
+    channel.queue_bind(exchange='ppd/challenge', queue=challenge.method.queue)
 
-    channel.exchange_declare(exchange='solution', exchange_type='fanout')
-    solution = channel.queue_declare(queue = 'ppd/SolutionMsg/'+numero)        # assina/publica - Verificação da seed que resolve desafio
-    channel.queue_bind(exchange='solution', queue=solution.method.queue)
+    channel.exchange_declare(exchange='ppd/solution', exchange_type='fanout')
+    solution = channel.queue_declare(queue = 'ppd/solution/'+numero)        # assina/publica - Verificação da seed que resolve desafio
+    channel.queue_bind(exchange='ppd/solution', queue=solution.method.queue)
 
-    channel.exchange_declare(exchange='voting', exchange_type='fanout')
-    voting = channel.queue_declare(queue = 'ppd/VotingMsg/'+numero)            # assina/publica - Lista de votação na seed que soluciona o desafio
-    channel.queue_bind(exchange='voting', queue=voting.method.queue)
+    channel.exchange_declare(exchange='ppd/voting', exchange_type='fanout')
+    voting = channel.queue_declare(queue = 'ppd/voting/'+numero)            # assina/publica - Lista de votação na seed que soluciona o desafio
+    channel.queue_bind(exchange='ppd/voting', queue=voting.method.queue)
     
     
     # InitMsg
@@ -473,7 +473,7 @@ def main():
     jsonSTR = json.dumps(dic,indent=2)
     
     channel.basic_consume(queue = 'ppd/init/'+numero , on_message_callback = callback, auto_ack = True)
-    channel.basic_publish(exchange = 'init', routing_key = '', body = jsonSTR)
+    channel.basic_publish(exchange = 'ppd/init', routing_key = '', body = jsonSTR)
 
     # PubKeyMsg
     os.system("bash chaves/generate_key.sh")
