@@ -55,6 +55,9 @@ Instalando threading:
 ```
 pip3 install threading
 ```
+Instalação do RabbitMQ:
+
+<a href="https://www.vultr.com/docs/install-rabbitmq-server-ubuntu-20-04-lts/?utm_source=performance-max-latam&utm_medium=paidmedia&obility_id=17096555207&utm_adgroup=&utm_campaign=&utm_term=&utm_content=&gclid=Cj0KCQjw3eeXBhD7ARIsAHjssr_Pi2EL3oHR-gBu8xULUWuVvIZCereqfGfjoYEwc6L6vaUVUbRa7LAaAgjQEALw_wcB">RabbitMQ</a>
 ## Modo de execução
 Navegue até a pasta usuario e execute o código logo abaixo garantindo que a pasta chaves não tenha sido altera e que os arquivos 0_export_public_key.py, 1_sign.py, 2_verify.py e generate_key.sh esteja na pasta e não tenham sido alterados.
 ```
