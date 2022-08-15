@@ -1,21 +1,14 @@
-from ctypes import cdll
-from pickle import TRUE
-from pickletools import read_bytes8
 from typing import Counter
-from numpy import char, insert
-import pandas as pd
-import pika, sys, os
-import threading
-import random
-import string
 from hashlib import sha1
-import time
-import json
-
-#from base64 import (b64encode, b64decode)
 from Crypto.Hash import SHA256
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.PublicKey import RSA
+
+import pandas as pd
+
+import pika, sys, os, threading
+import string, json
+import random, time
 
 global arquivo 
 arquivo = 'output/banco-de-dados.csv'
