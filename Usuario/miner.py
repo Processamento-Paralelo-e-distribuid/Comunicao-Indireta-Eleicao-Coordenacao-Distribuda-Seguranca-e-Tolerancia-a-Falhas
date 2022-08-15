@@ -362,7 +362,7 @@ def main():
             arq.write(str(dic["NodeId"])+"\t"+dic["Seed"]+"\n")
             arq.close()
             
-            dic = {"NodeId":nodeID, "TransactionNumber":int(getTransactionID()), "Seed":dic["Seed"], "Vote":voto}
+            dic = {"NodeId":nodeID, "SolutionID":dic["NodeId"], "TransactionNumber":int(getTransactionID()), "Seed":dic["Seed"], "Vote":voto}
             jsonSTR = json.dumps(dic, indent=2)
             sig = genereteSignal(jsonSTR)
             
@@ -444,27 +444,27 @@ def main():
 
     # Verifica se a lista esta completa
     channel.exchange_declare(exchange='init', exchange_type='fanout')
-    init = channel.queue_declare(queue = 'ppd/init/'+numero)                # assina/publica - Sala de Espera
+    init = channel.queue_declare(queue = 'ppd/InitMsg/'+numero)                # assina/publica - Sala de Espera
     channel.queue_bind(exchange='init', queue=init.method.queue)
 
     channel.exchange_declare(exchange='pubkey', exchange_type='fanout')
-    pubkey = channel.queue_declare(queue = 'ppd/pubkey/'+numero)            # assina/publica - Eleção do presidente
+    pubkey = channel.queue_declare(queue = 'ppd/PubKeyMsg/'+numero)            # assina/publica - Eleção do presidente
     channel.queue_bind(exchange='pubkey', queue=pubkey.method.queue)
    
     channel.exchange_declare(exchange='election', exchange_type='fanout')
-    election = channel.queue_declare(queue = 'ppd/election/'+numero)        # assina/publica - Eleção do presidente
+    election = channel.queue_declare(queue = 'ppd/ElectionMsg/'+numero)        # assina/publica - Eleção do presidente
     channel.queue_bind(exchange='election', queue=election.method.queue)
     
     channel.exchange_declare(exchange='challenge', exchange_type='fanout')
-    challenge = channel.queue_declare(queue = 'ppd/challenge/'+numero)      # assina/publica - Desafio da transição atual
+    challenge = channel.queue_declare(queue = 'ppd/ChallengeMsg/'+numero)      # assina/publica - Desafio da transição atual
     channel.queue_bind(exchange='challenge', queue=challenge.method.queue)
 
     channel.exchange_declare(exchange='solution', exchange_type='fanout')
-    solution = channel.queue_declare(queue = 'ppd/solution/'+numero)        # assina/publica - Verificação da seed que resolve desafio
+    solution = channel.queue_declare(queue = 'ppd/SolutionMsg/'+numero)        # assina/publica - Verificação da seed que resolve desafio
     channel.queue_bind(exchange='solution', queue=solution.method.queue)
 
     channel.exchange_declare(exchange='voting', exchange_type='fanout')
-    voting = channel.queue_declare(queue = 'ppd/voting/'+numero)            # assina/publica - Lista de votação na seed que soluciona o desafio
+    voting = channel.queue_declare(queue = 'ppd/VotingMsg/'+numero)            # assina/publica - Lista de votação na seed que soluciona o desafio
     channel.queue_bind(exchange='voting', queue=voting.method.queue)
     
     
