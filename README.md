@@ -24,6 +24,12 @@ A verificação da seed é feita no callback4 onde após verificação de autent
 ### VotingMsg
 A ultima fila, e a mais importante, e a fila de contagem de votos, localizada no callback5, nesta fila os votos validos são armazenados e quando se obtem todos os votos olha-se se a maioria aprova a seed, caso sim a seed no topo do arquivo seed.txt e colocada na lista local juntamente com o id do node que enviou a seed e o arquivo então é apagado, caso a seed não seja aprovada a seed é removida do topo do arquivo seed.txt e a próxima votação se inicia. Sendo apenas possivel haver verificação da votação caso o arquivo seed.txt exista.
 ## Testes
+Os testes executados foram elaborados utilizando varios usuarios e dentre eles foram utilizados alguns usuarios maus intencionados, dentre eles foram desenvolvidos 3 tipos de usuarios maus intensionados:
+  -  O primeiro usuario que frauda a eleição dos usuarios, tentando se passar por outros usuarios enviando a sua propria seed como voto.
+  -  O segundo usuario que tenta fraudar o envio de challenger, enviando uma challenger aleatoria independente se foi ele o usuario eleito ou não
+  -  O terceiro usuario frauda a votação das seeds, tentado enviar votos por outros usuarios de duas formar, uma quando a seed e a dele tenta enviar True como voto dos outros usuarios, e a outra e quando a seed não é a dele, logo ele tenta enviar Falso como voto de todos os usuarios.
+
+Todos os usuarios maus intencionados utilizados para teste podem ser encontrados na pasta "Teste" do repositorio.
 ## Analise
 ## Requerimento de instalação
 requer a instalação do pycryptodome 3.15.0, pika, pandas, threading e do RabbitMQ.
