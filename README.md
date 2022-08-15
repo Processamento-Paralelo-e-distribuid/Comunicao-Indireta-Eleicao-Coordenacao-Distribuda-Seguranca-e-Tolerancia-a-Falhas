@@ -26,7 +26,7 @@ A ultima fila, e a mais importante, e a fila de contagem de votos, localizada no
 ## Testes
 ## Analise
 ## Requerimento de instalação
-requer a instalação do pycryptodome 3.15.0, pika, pandas e threading.
+requer a instalação do pycryptodome 3.15.0, pika, pandas, threading e do RabbitMQ.
 
 Primeiramente atualizando o sistema
 ```
