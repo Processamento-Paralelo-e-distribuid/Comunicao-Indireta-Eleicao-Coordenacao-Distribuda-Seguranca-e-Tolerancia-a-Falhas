@@ -130,7 +130,10 @@ def main():
                 jsonSTR = json.dumps(dic,indent=2)
                 
                 channel.basic_publish(exchange = 'ppd/pubkey', routing_key = '', body = jsonSTR)
-                print(usuarios)
+                print(usuarios)             
+            elif(dic["NodeId"] == nodeID):
+                channel.basic_publish(exchange = 'ppd/init', routing_key = '', body = temp)
+                time.sleep(1)
 
     def callback1(ch, method, properties, body):
         try:
@@ -150,19 +153,19 @@ def main():
             except:
                 chaves.append(temp)
 
+            #Sala completa
             if(len(chaves) == qtd_usuarios):
-                for i in range(qtd_usuarios-1, -1, -1):
-                    user = json.loads(usuarios[i]) 
-                    dic = {"NodeId":user["NodeId"],"ElectionNumber":nodeID}
-                    jsonSTR = json.dumps(dic,indent=2)
-                    sig = genereteSignal(jsonSTR)
-                    
-                    dic.update({"Sign":sig})
-                    jsonSTR = json.dumps(dic,indent=2)
-                    channel.basic_publish(exchange = 'ppd/election', routing_key = '', body = jsonSTR)
-            elif(dic["NodeId"] == nodeID):
-                channel.basic_publish(exchange = 'ppd/init', routing_key = '', body = temp)
-                time.sleep(1)
+                voto = json.loads(random.choice(usuarios))
+                dic = {"NodeId":nodeID,"ElectionNumber":int(voto["NodeId"])}
+
+                
+                jsonSTR = json.dumps(dic,indent=2)
+                sig = genereteSignal(jsonSTR)
+                
+                dic.update({"Sign":sig})
+                jsonSTR = json.dumps(dic,indent=2)
+                
+                channel.basic_publish(exchange = 'ppd/election', routing_key = '', body = jsonSTR)
 
     def callback2(ch, method, properties, body): 
         def getCherman(eleitos):
@@ -344,21 +347,25 @@ def main():
         aux = df.query("TransactionID ==" + str(getTransactionID()))
         if(aux["Winner"].values[0] == -1):
             voto = False                            # Erro, não resolve desafio ou desafio solucionado
-            if(submitChallenge(dic["Seed"]) == 1):  # Resolve desafio
+            if(dic["NodeId"] == nodeID):
                 voto = True
-
+            else:
+                voto = False
+                
             arq = open("seed.txt", "a")
             arq.write(str(dic["NodeId"])+"\t"+dic["Seed"]+"\n")
             arq.close()
             
-            dic = {"NodeId":nodeID, "SolutionID":dic["NodeId"], "TransactionNumber":int(getTransactionID()), "Seed":dic["Seed"], "Vote":voto}
-            jsonSTR = json.dumps(dic, indent=2)
-            sig = genereteSignal(jsonSTR)
+            for i in range(qtd_usuarios-1, -1, -1):
+                user = json.loads(usuarios[i]) 
+                dic = {"NodeId":user["NodeId"], "SolutionID":dic["NodeId"], "TransactionNumber":int(getTransactionID()), "Seed":dic["Seed"], "Vote":voto}
+                jsonSTR = json.dumps(dic, indent=2)
+                sig = genereteSignal(jsonSTR)
             
-            dic.update({"Sign":sig})
-            jsonSTR = json.dumps(dic,indent=2)
-        
-            channel.basic_publish(exchange = 'ppd/voting', routing_key = '', body = jsonSTR)  
+                dic.update({"Sign":sig})
+                jsonSTR = json.dumps(dic,indent=2)
+                if(user["NodeId"] != nodeID):
+                    channel.basic_publish(exchange = 'ppd/voting', routing_key = '', body = jsonSTR)  
         
     def callback5(ch, method, properties, body):
         def verificaVotacao(votacao):
