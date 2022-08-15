@@ -20,8 +20,8 @@ def getTransactionID(create = False):
         df = None
     transactionID = 0
     
-    a = 18
-    b = 20
+    a = 20
+    b = 40
     if(df is None):
         lista = {"TransactionID":[0], "Challenge":[random.randint(a,b+1)], "Seed":[" "], "Winner": [-1]}
         df = pd.DataFrame(lista)
