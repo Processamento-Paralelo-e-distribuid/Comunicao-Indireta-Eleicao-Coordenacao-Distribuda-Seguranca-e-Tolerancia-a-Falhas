@@ -43,9 +43,9 @@ Instalação do pika:
 ```
 python3 -m pip install --upgrade pika
 ```
-Instalando pycryotidine:
+Instalando pycrypto:
 ```
-sudo apt-get install -y python-pycryptodome
+sudo apt-get install -y python3-crypto
 ```
 Instalando pandas:
 ```
