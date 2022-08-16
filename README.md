@@ -55,7 +55,7 @@ python3 -m pip install --upgrade pika
 ```
 Instalando pycrypto:
 ```
-sudo apt-get install -y python3-crypto
+python3 -m pip install --upgrade pyCrypto
 ```
 Instalando pandas:
 ```
