@@ -99,7 +99,8 @@ def verifySignal(message, sig, public_key):
     else:
         return 0
 
-def main():  
+def main():
+    IP = "10.9.13.101"#IP = str(INSERT("Entre com o Broke IP"))
     qtd_usuarios = int(input("Informe a quantidade de usuarios: "))
     usuarios, chaves, eleitos, votacao = [], [], [], []
     
@@ -429,7 +430,7 @@ def main():
                     arq.write("/".join(split[1:]))
                     arq.close()
                             
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host = 'localhost'))
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host = IP))
     channel = connection.channel()
 
     print(nodeID)
