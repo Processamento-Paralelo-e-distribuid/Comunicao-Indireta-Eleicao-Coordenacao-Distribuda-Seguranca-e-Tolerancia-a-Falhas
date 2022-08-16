@@ -65,6 +65,10 @@ Instalando threading:
 ```
 pip3 install threading
 ```
+Instalando time:
+```
+pip install python-time
+```
 Instalação do RabbitMQ:
 
 <a href="https://www.vultr.com/docs/install-rabbitmq-server-ubuntu-20-04-lts/?utm_source=performance-max-latam&utm_medium=paidmedia&obility_id=17096555207&utm_adgroup=&utm_campaign=&utm_term=&utm_content=&gclid=Cj0KCQjw3eeXBhD7ARIsAHjssr_Pi2EL3oHR-gBu8xULUWuVvIZCereqfGfjoYEwc6L6vaUVUbRa7LAaAgjQEALw_wcB">RabbitMQ</a>
