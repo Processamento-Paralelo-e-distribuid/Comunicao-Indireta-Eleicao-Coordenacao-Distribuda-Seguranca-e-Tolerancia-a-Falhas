@@ -429,8 +429,9 @@ def main():
                     arq = open("seed.txt", "w")
                     arq.write("/".join(split[1:]))
                     arq.close()
-                            
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host = IP))
+
+    credentials = pika.credentials.PlainCredentials("admin", "admin")                            
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host = IP, credentials=credentials))
     channel = connection.channel()
 
     print(nodeID)
