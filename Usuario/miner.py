@@ -1,4 +1,3 @@
-from tkinter import INSERT
 from typing import Counter
 from hashlib import sha1
 from Crypto.Hash import SHA256
@@ -23,7 +22,7 @@ def getTransactionID(create = False):
     transactionID = 0
     
     a = 20
-    b = 40
+    b = 20
     if(df is None):
         lista = {"TransactionID":[0], "Challenge":[random.randint(a,b)], "Seed":[" "], "Winner": [-1]}
         df = pd.DataFrame(lista)
@@ -101,6 +100,12 @@ def verifySignal(message, sig, public_key):
     else:
         return 0
 
+def getCherman(eleitos):
+    eleitos = [json.loads(aux)["NodeId"] for aux in eleitos]
+    chairman = Counter(eleitos)
+    chairman = chairman.most_common(1)[0][0]
+    return chairman    
+
 def main():
     IP = str(input("Entre com o Broke IP: "))
     qtd_usuarios = int(input("Informe a quantidade de usuarios: "))
@@ -171,12 +176,6 @@ def main():
                 channel.basic_publish(exchange = 'ppd/election', routing_key = '', body = jsonSTR)
 
     def callback2(ch, method, properties, body): 
-        def getCherman(eleitos):
-            eleitos = [json.loads(aux)["NodeId"] for aux in eleitos]
-            chairman = Counter(eleitos)
-            chairman = chairman.most_common(1)[0][0]
-            return chairman                   
-
         temp = body.decode()
         dic = json.loads(temp)
         sig = dic.pop("Sign")
@@ -256,13 +255,13 @@ def main():
         sig = dic.pop("Sign")
         
         #Verifica assinatura do eleito
-        chairman = json.loads(Counter(eleitos).most_common(1)[0][0]) 
-        if(chairman["NodeId"] != dic["NodeId"]):
+        chairman = getCherman(eleitos) 
+        if(chairman != dic["NodeId"]):
             print("\nLog: \n\t Tentativa de fraude no envio da challenger")
             return
         for chave in chaves:
             chave = json.loads(chave)
-            if(chave["NodeId"] == chairman["NodeId"]):
+            if(chave["NodeId"] == chairman):
                 if(not verifySignal(json.dumps(dic), sig, chave["PubKey"])):
                     print("\nLog: \n\t Tentativa de fraude na chave do lider")
                     return
