@@ -4,6 +4,7 @@ from hashlib import sha1
 from Crypto.Hash import SHA256
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.PublicKey import RSA
+from itertools import combinations_with_replacement
 
 import pandas as pd
 
@@ -21,10 +22,10 @@ def getTransactionID(create = False):
         df = None
     transactionID = 0
     
-    a = 20#a = 18
-    b = 40#b = 20
+    a = 20
+    b = 40
     if(df is None):
-        lista = {"TransactionID":[0], "Challenge":[random.randint(a,b+1)], "Seed":[" "], "Winner": [-1]}
+        lista = {"TransactionID":[0], "Challenge":[random.randint(a,b)], "Seed":[" "], "Winner": [-1]}
         df = pd.DataFrame(lista)
     else:
         tam = len(df.iloc[:, 0])
@@ -32,7 +33,7 @@ def getTransactionID(create = False):
             return df.iloc[tam-1, 0]
         elif(create):
             transactionID = df.iloc[(tam-1), 0]+1
-            lista = {"TransactionID":transactionID, "Challenge":[random.randint(a,b+1)], "Seed":[" "], "Winner": [-1]}
+            lista = {"TransactionID":transactionID, "Challenge":[random.randint(a,b)], "Seed":[" "], "Winner": [-1]}
             transaction = pd.DataFrame(lista)
 
             df = pd.concat([df,transaction], ignore_index = True)
@@ -237,21 +238,18 @@ def main():
             
             df.to_csv(arquivo, index=False)
         
-        def random_generator(size=6, n=1, chars=string.ascii_letters+string.punctuation+string.digits): # Gera string aleatória
-            random.seed(n)
+        def random_generator(size=6, chars=string.ascii_letters+string.punctuation+string.digits): # Gera string aleatória
             return ''.join(random.choice(chars) for _ in range(size))
 
         def getSeed(challenger, seed, size): # Gera seed
-            n = 0
             while(flag):
-                seedTemp = random_generator(size, n)
+                seedTemp = random_generator(size)
                 texto = str(seedTemp).encode('utf-8')
                 hash = sha1(texto).hexdigest()
                 
                 if(verificaSEED(hash, challenger) == 1):
                     seed.append(seedTemp)
                     break
-                n = n + 1
         
         temp = body.decode()
         dic = json.loads(temp)
@@ -276,24 +274,41 @@ def main():
         flag = True
         seed, multThread = [], []
 
-        for i in range(1,19):
-            thread = threading.Thread(target=getSeed, args=(challenger, seed, i, ))
-            multThread.append(thread)
-            thread.start()
-            
-            if(len(seed) > 0):
-                flag = False
-                break   
+        if(challenger == 20):
+            chars=string.ascii_letters+string.punctuation+string.digits
+            seedsTemp = list(combinations_with_replacement(chars, 4))
+            seedsTemp = [''.join(tups) for tups in seedsTemp]
+            for seedTemp in seedsTemp:
+                if(flag == False):
+                    break
+                texto = str(seedTemp).encode('utf-8')
+                hash = sha1(texto).hexdigest()
+                
+                if(verificaSEED(hash, challenger) == 1):
+                    seed.append(seedTemp)
+                    break
+        else:
+            for i in range(5,11):
+                thread1 = threading.Thread(target=getSeed, args=(challenger, seed, i, ))
+                multThread.append(thread1)
+                thread2 = threading.Thread(target=getSeed, args=(challenger, seed, i, ))
+                multThread.append(thread2)
+                thread1.start()
+                thread2.start()
+                
+                if(len(seed) > 0):
+                    flag = False
+                    break   
 
-        while(True):
-            if(len(seed) != 0):
-                break
+            while(True):
+                if(len(seed) != 0):
+                    break
 
-        flag = False
+            flag = False
 
-        # Verifica se todas as threads acabaram 
-        for thread in multThread:
-            thread.join()
+            # Verifica se todas as threads acabaram 
+            for thread in multThread:
+                thread.join()
         
         #enviar resposta para broker
         dic = {"NodeId":nodeID, "TransactionNumber":int(getTransactionID()), "Seed":seed[0]}
