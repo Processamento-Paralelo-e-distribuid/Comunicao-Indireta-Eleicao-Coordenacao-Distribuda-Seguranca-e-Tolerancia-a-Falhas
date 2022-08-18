@@ -1,3 +1,4 @@
+from tkinter import INSERT
 from typing import Counter
 from hashlib import sha1
 from Crypto.Hash import SHA256
@@ -100,12 +101,12 @@ def verifySignal(message, sig, public_key):
         return 0
 
 def main():
-    IP = "10.9.13.101"#IP = str(INSERT("Entre com o Broke IP"))
+    IP = str(input("Entre com o Broke IP: "))
     qtd_usuarios = int(input("Informe a quantidade de usuarios: "))
     usuarios, chaves, eleitos, votacao = [], [], [], []
     
-    random.seed(random.randint(0,2^(32)-1))
-    nodeID = random.randint(0,2^(32)-1)
+    random.seed(random.randint(0,2^(32-1)))
+    nodeID = random.randint(0,2^(32-1))
     
     numero = str(nodeID)
     
@@ -128,7 +129,7 @@ def main():
                 dic = {"NodeId": nodeID, "PubKey": public_key.read()}
                 public_key.close()
                 
-                jsonSTR = json.dumps(dic,indent=2)
+                jsonSTR = json.dumps(dic)
                 
                 channel.basic_publish(exchange = 'ppd/pubkey', routing_key = '', body = jsonSTR)
                 print(usuarios)             
@@ -138,7 +139,7 @@ def main():
 
     def callback1(ch, method, properties, body):
         try:
-            if(usuarios.index(json.dumps({"NodeId": nodeID},indent=2)) >= 0):
+            if(usuarios.index(json.dumps({"NodeId": nodeID})) >= 0):
                 pass
         except:
             sys.exit(0)
@@ -160,11 +161,11 @@ def main():
                 dic = {"NodeId":nodeID,"ElectionNumber":int(voto["NodeId"])}
 
                 
-                jsonSTR = json.dumps(dic,indent=2)
+                jsonSTR = json.dumps(dic)
                 sig = genereteSignal(jsonSTR)
                 
                 dic.update({"Sign":sig})
-                jsonSTR = json.dumps(dic,indent=2)
+                jsonSTR = json.dumps(dic)
                 
                 channel.basic_publish(exchange = 'ppd/election', routing_key = '', body = jsonSTR)
 
@@ -190,7 +191,7 @@ def main():
                 for chave in chaves:
                     chave = json.loads(chave)
                     if(chave["NodeId"] == dic["NodeId"]):
-                        if(not verifySignal(json.dumps(dic,indent=2), sig, chave["PubKey"])):
+                        if(not verifySignal(json.dumps(dic), sig, chave["PubKey"])):
                             print("\nLog: \n\t Tentativa de fraude na eleição")
                         else:
                             eleitos.append(temp)
@@ -209,12 +210,12 @@ def main():
                     challenger      = getChallenge(trasactionID)
                     
                     dic = {"NodeId":nodeID, "TransactionNumber":int(getTransactionID()),"Challenge":int(challenger)}
-                    jsonSTR = json.dumps(dic, indent=2)
+                    jsonSTR = json.dumps(dic)
                     
                     sig = genereteSignal(jsonSTR)
                     
                     dic.update({"Sign":sig})
-                    jsonSTR = json.dumps(dic,indent=2)
+                    jsonSTR = json.dumps(dic)
                     
                     channel.basic_publish(exchange = 'ppd/challenge', routing_key = '', body = jsonSTR)
                 
@@ -264,7 +265,7 @@ def main():
         for chave in chaves:
             chave = json.loads(chave)
             if(chave["NodeId"] == chairman["NodeId"]):
-                if(not verifySignal(json.dumps(dic,indent=2), sig, chave["PubKey"])):
+                if(not verifySignal(json.dumps(dic), sig, chave["PubKey"])):
                     print("\nLog: \n\t Tentativa de fraude na chave do lider")
                     return
         
@@ -275,7 +276,7 @@ def main():
         flag = True
         seed, multThread = [], []
 
-        for i in range(1,challenger*2+1):
+        for i in range(1,19):
             thread = threading.Thread(target=getSeed, args=(challenger, seed, i, ))
             multThread.append(thread)
             thread.start()
@@ -296,11 +297,11 @@ def main():
         
         #enviar resposta para broker
         dic = {"NodeId":nodeID, "TransactionNumber":int(getTransactionID()), "Seed":seed[0]}
-        jsonSTR = json.dumps(dic, indent=2)
+        jsonSTR = json.dumps(dic)
         sig = genereteSignal(jsonSTR)
         
         dic.update({"Sign":sig})
-        jsonSTR = json.dumps(dic,indent=0)
+        jsonSTR = json.dumps(dic)
         
         channel.basic_publish(exchange = 'ppd/solution', routing_key = '', body = jsonSTR)
         
@@ -336,7 +337,7 @@ def main():
         for chave in chaves:
             chave = json.loads(chave)
             if(chave["NodeId"] == dic["NodeId"]):
-                if(not verifySignal(json.dumps(dic,indent=2), sig, chave["PubKey"])):
+                if(not verifySignal(json.dumps(dic), sig, chave["PubKey"])):
                     print("\nLog: \n\t Tentativa de Fraude na Seed")
                     return
         
@@ -356,11 +357,11 @@ def main():
             arq.close()
             
             dic = {"NodeId":nodeID, "SolutionID":dic["NodeId"], "TransactionNumber":int(getTransactionID()), "Seed":dic["Seed"], "Vote":voto}
-            jsonSTR = json.dumps(dic, indent=2)
+            jsonSTR = json.dumps(dic)
             sig = genereteSignal(jsonSTR)
             
             dic.update({"Sign":sig})
-            jsonSTR = json.dumps(dic,indent=2)
+            jsonSTR = json.dumps(dic)
         
             channel.basic_publish(exchange = 'ppd/voting', routing_key = '', body = jsonSTR)  
         
@@ -392,7 +393,7 @@ def main():
                 for chave in chaves:
                     chave = json.loads(chave)
                     if(chave["NodeId"] == dic["NodeId"]):
-                        if(not verifySignal(json.dumps(dic,indent=2), sig, chave["PubKey"])):
+                        if(not verifySignal(json.dumps(dic), sig, chave["PubKey"])):
                             print("\nLog: \n\t Tentativa de Fraude na Votação")
                         else:
                             votacao.append(temp)
@@ -416,11 +417,11 @@ def main():
                     voto = json.loads(random.choice(usuarios))
                     
                     dic = {"NodeId":nodeID,"ElectionNumber":voto["NodeId"]}                    
-                    jsonSTR = json.dumps(dic,indent=2)
+                    jsonSTR = json.dumps(dic)
                     sig = genereteSignal(jsonSTR)
                     
                     dic.update({"Sign":sig})
-                    jsonSTR = json.dumps(dic,indent=2)
+                    jsonSTR = json.dumps(dic)
 
                     channel.basic_publish(exchange = 'ppd/election', routing_key = '', body = jsonSTR)
                     
@@ -430,8 +431,12 @@ def main():
                     arq.write("/".join(split[1:]))
                     arq.close()
 
-    credentials = pika.credentials.PlainCredentials("admin", "admin")                            
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host = IP, credentials=credentials))
+    try:
+        credentials = pika.credentials.PlainCredentials("admin", "admin")
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host = IP, credentials=credentials))
+    except:
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host = 'localhost'))
+    
     channel = connection.channel()
 
     print(nodeID)
@@ -464,7 +469,7 @@ def main():
     
     # InitMsg
     dic = {"NodeId": nodeID}
-    jsonSTR = json.dumps(dic,indent=2)
+    jsonSTR = json.dumps(dic)
     
     channel.basic_consume(queue = 'ppd/init/'+numero , on_message_callback = callback, auto_ack = True)
     channel.basic_publish(exchange = 'ppd/init', routing_key = '', body = jsonSTR)
@@ -492,9 +497,13 @@ def main():
 
 if __name__ == '__main__':
     try:
-        file = 'output/banco-de-dados.csv'
-        if(os.path.exists(file) and os.path.isfile(file)): 
-            os.remove(file)
+        file = './output'
+        if(os.path.exists(file)): 
+            file = file+ '/banco-de-dados.csv'
+            if(os.path.exists(file) and os.path.isfile(file)): 
+                os.remove(file)
+        else:
+            os.mkdir('./output')
         file = 'chaves/private_key.pem'
         if(os.path.exists(file) and os.path.isfile(file)): 
             os.remove(file)
