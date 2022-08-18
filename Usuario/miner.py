@@ -101,13 +101,19 @@ def verifySignal(message, sig, public_key):
         return 0
 
 def getCherman(eleitos):
-    eleitos = [json.loads(aux)["NodeId"] for aux in eleitos]
-    chairman = Counter(eleitos)
-    chairman = chairman.most_common(1)[0][0]
-    return chairman    
+    eleitos = [json.loads(aux) for aux in eleitos]
+    chairman = eleitos[0]
+
+    for candidato in eleitos:
+        if(candidato["ElectionNumber"] > chairman["ElectionNumber"]):
+            chairman = candidato
+        if(candidato["ElectionNumber"] == chairman["ElectionNumber"]):
+            if(candidato["NodeId"] > chairman["NodeId"]):
+                chairman = candidato
+    return chairman["NodeId"]
 
 def main():
-    IP = str(input("Entre com o Broke IP: "))
+    IP="127.0.0.1"#"10.9.13.101"#IP = str(input("Entre com o Broke IP: "))
     qtd_usuarios = int(input("Informe a quantidade de usuarios: "))
     usuarios, chaves, eleitos, votacao = [], [], [], []
     
@@ -163,8 +169,8 @@ def main():
 
             #Sala completa
             if(len(chaves) == qtd_usuarios):
-                voto = json.loads(random.choice(usuarios))
-                dic = {"NodeId":nodeID,"ElectionNumber":int(voto["NodeId"])}
+                voto = random.randint(0,2^(32-1))
+                dic = {"NodeId":nodeID,"ElectionNumber":int(voto)}
 
                 
                 jsonSTR = json.dumps(dic)
