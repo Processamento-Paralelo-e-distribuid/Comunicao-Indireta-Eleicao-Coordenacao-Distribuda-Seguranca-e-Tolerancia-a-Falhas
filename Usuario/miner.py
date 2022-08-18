@@ -113,12 +113,12 @@ def getCherman(eleitos):
     return chairman["NodeId"]
 
 def main():
-    IP="127.0.0.1"#"10.9.13.101"#IP = str(input("Entre com o Broke IP: "))
+    IP="10.9.13.101"#IP = str(input("Entre com o Broke IP: "))
     qtd_usuarios = int(input("Informe a quantidade de usuarios: "))
     usuarios, chaves, eleitos, votacao = [], [], [], []
     
-    random.seed(random.randint(0,2^(32-1)))
-    nodeID = random.randint(0,2^(32-1))
+    #random.seed(random.randint(0,2^(32-1)))
+    nodeID = 4#random.randint(0,2^(32-1))
     
     numero = str(nodeID)
     
@@ -222,7 +222,7 @@ def main():
                     
                     dic.update({"Sign":sig})
                     jsonSTR = json.dumps(dic)
-                    
+                    print("Challenger enviada: {}".format(jsonSTR))
                     channel.basic_publish(exchange = 'ppd/challenge', routing_key = '', body = jsonSTR)
                 
     def callback3(ch, method, properties, body):
